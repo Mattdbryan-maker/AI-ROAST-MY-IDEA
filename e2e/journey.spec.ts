@@ -15,10 +15,11 @@ test("pitch → trial → verdict → fix", async ({ page }) => {
   // Analysis sequence, then the first witness takes the stand.
   await expect(page.getByText(/case file/i)).toBeVisible();
   await expect(page.getByText(/testimony/i)).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Live", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "STERLING" })).toBeVisible();
 
   await page.getByRole("button", { name: /skip to verdict/i }).click();
-  await expect(page.getByText(/^(KILL IT|FIX IT|BUILD IT)$/)).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/^(KILL IT|FIX IT|BUILD IT)$/)).toBeVisible({ timeout: 40_000 });
   await expect(page.getByText(/how they voted/i)).toBeVisible({ timeout: 10_000 });
 
   await page.getByRole("button", { name: /fix my idea/i }).first().click();
@@ -41,6 +42,22 @@ test("share card and share page", async ({ page, request }) => {
   await page.goto(`/r/${payload}`);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(roast.title);
   await expect(page.getByRole("link", { name: /put it on trial/i })).toBeVisible();
+});
+
+test("streams the panel as NDJSON events", async ({ request }) => {
+  const res = await request.post("/api/roast/stream", { data: { idea: "A subscription box of houseplants for people who kill houseplants." } });
+  expect(res.status()).toBe(200);
+  expect(res.headers()["content-type"]).toContain("application/x-ndjson");
+  const events = (await res.text())
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as { type: string });
+  const types = events.map((e) => e.type);
+  expect(types[0]).toBe("start");
+  expect(types).toContain("meta");
+  expect(types.filter((t) => t === "progress").length).toBeGreaterThan(10);
+  expect(types.filter((t) => t === "take")).toHaveLength(4);
+  expect(types.at(-1)).toBe("done");
 });
 
 test("rejects bad input at the API", async ({ request }) => {

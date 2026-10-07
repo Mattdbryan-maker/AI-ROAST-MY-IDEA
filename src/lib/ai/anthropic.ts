@@ -12,7 +12,7 @@ import {
   buildFixUserMessage,
   buildRoastUserMessage,
 } from "./prompts";
-import { InvalidResponseError, ProviderError, type RoastProvider } from "./provider";
+import { InvalidResponseError, ProviderError, type RoastChunk, type RoastProvider } from "./provider";
 
 export const DEFAULT_ANTHROPIC_MODEL = "claude-opus-5-5";
 
@@ -76,7 +76,32 @@ export class AnthropicProvider implements RoastProvider {
     }
   }
 
-  private async complete(system: string, user: string, schema: z.ZodType, signal?: AbortSignal): Promise<unknown> {
+  /**
+   * Streams the roast as raw JSON text. Thinking blocks are skipped; if the
+   * server falls back to another model mid-response, a `fallback` block starts
+   * the content over, which we surface as a restart.
+   */
+  async *roastStream(idea: string, signal?: AbortSignal): AsyncGenerator<RoastChunk> {
+    const params = this.params(ROAST_SYSTEM_PROMPT, buildRoastUserMessage(idea), ModelRoastSchema);
+    let sawText = false;
+    try {
+      const stream = this.client.beta.messages.stream(params, { signal });
+      for await (const event of stream) {
+        if (event.type === "content_block_start" && event.content_block.type === "fallback" && sawText) {
+          sawText = false;
+          yield { type: "restart" };
+        } else if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+          sawText = true;
+          yield { type: "text", text: event.delta.text };
+        }
+      }
+      checkStopReason((await stream.finalMessage()).stop_reason);
+    } catch (err) {
+      throw mapApiError(err);
+    }
+  }
+
+  private params(system: string, user: string, schema: z.ZodType): MessageCreateParamsNonStreaming {
     const params: MessageCreateParamsNonStreaming = {
       model: this.model,
       max_tokens: 16000,
@@ -90,32 +115,17 @@ export class AnthropicProvider implements RoastProvider {
       params.betas = ["server-side-fallback-2026-07-01"];
       params.fallbacks = "default";
     }
+    return params;
+  }
 
+  private async complete(system: string, user: string, schema: z.ZodType, signal?: AbortSignal): Promise<unknown> {
     let message;
     try {
-      message = await this.client.beta.messages.create(params, { signal });
+      message = await this.client.beta.messages.create(this.params(system, user, schema), { signal });
     } catch (err) {
-      if (err instanceof Anthropic.AuthenticationError) {
-        throw new ProviderError("The AI provider rejected the API key.", "provider_error", false);
-      }
-      if (err instanceof Anthropic.RateLimitError) {
-        throw new ProviderError("The AI provider is rate limiting us. Try again in a moment.");
-      }
-      if (err instanceof Anthropic.BadRequestError) {
-        throw new ProviderError(`The AI provider rejected the request: ${err.message}`, "provider_error", false);
-      }
-      if (err instanceof Anthropic.APIError) {
-        throw new ProviderError(`The AI provider failed: ${err.message}`);
-      }
-      throw err;
+      throw mapApiError(err);
     }
-
-    if (message.stop_reason === "refusal") {
-      throw new ProviderError("The panel refused to judge this one.", "refused", false);
-    }
-    if (message.stop_reason === "max_tokens") {
-      throw new InvalidResponseError("Model response was cut off");
-    }
+    checkStopReason(message.stop_reason);
     const text = message.content
       .map((block) => (block.type === "text" ? block.text : ""))
       .join("")
@@ -123,4 +133,27 @@ export class AnthropicProvider implements RoastProvider {
     if (!text) throw new InvalidResponseError("Model returned no text");
     return extractJson(text);
   }
+}
+
+function checkStopReason(stopReason: string | null) {
+  if (stopReason === "refusal") throw new ProviderError("The panel refused to judge this one.", "refused", false);
+  if (stopReason === "max_tokens") throw new InvalidResponseError("Model response was cut off");
+}
+
+/** Typed SDK errors → our provider errors. Anything already ours passes through. */
+function mapApiError(err: unknown): unknown {
+  if (err instanceof ProviderError) return err;
+  if (err instanceof Anthropic.AuthenticationError) {
+    return new ProviderError("The AI provider rejected the API key.", "provider_error", false);
+  }
+  if (err instanceof Anthropic.RateLimitError) {
+    return new ProviderError("The AI provider is rate limiting us. Try again in a moment.");
+  }
+  if (err instanceof Anthropic.BadRequestError) {
+    return new ProviderError(`The AI provider rejected the request: ${err.message}`, "provider_error", false);
+  }
+  if (err instanceof Anthropic.APIError) {
+    return new ProviderError(`The AI provider failed: ${err.message}`);
+  }
+  return err;
 }

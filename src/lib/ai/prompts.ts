@@ -20,11 +20,12 @@ export const ModelRoastSchema = z.object({
     .array(
       z.object({
         persona: PersonaEnum,
-        score: z.number().int().describe("0-100. This persona's honest score."),
         headline: z.string().describe("The persona's opening zinger. One sentence, max ~110 characters."),
         points: z.array(z.string()).describe("Exactly 3 sharp arguments, each 1-2 sentences, max ~220 characters."),
         strength: z.string().describe("The single best thing about the idea from this persona's view. One sentence."),
         weakness: z.string().describe("The single worst thing about the idea from this persona's view. One sentence."),
+        // Last on purpose: the persona argues first, then scores — and the UI streams the arguments before the number.
+        score: z.number().int().describe("0-100. This persona's honest score, decided after making their arguments."),
       }),
     )
     .describe("Exactly four takes, one per persona, in order: investor, engineer, marketer, customer."),

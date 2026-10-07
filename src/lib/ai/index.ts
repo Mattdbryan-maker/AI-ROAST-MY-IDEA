@@ -36,7 +36,7 @@ export function getProvider(): RoastProvider {
     if (process.env.AI_PROVIDER === "anthropic") {
       console.warn("[ai] AI_PROVIDER=anthropic but ANTHROPIC_API_KEY is missing — using the demo panel.");
     }
-    cached = new DemoProvider();
+    cached = new DemoProvider({ cps: Number(process.env.DEMO_STREAM_CPS ?? 450) });
   }
   return cached;
 }

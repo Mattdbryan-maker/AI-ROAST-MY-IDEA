@@ -2,7 +2,7 @@ import { PERSONAS, PERSONA_ORDER } from "../../personas";
 import { clampScore, overallScore, verdictFor } from "../../scoring";
 import type { FixChange, FixResult, PersonaId, PersonaTake, Roast, Verdict } from "../../types";
 import { cleanText, normalizeFix, normalizeRoast } from "../normalize";
-import type { RoastProvider } from "../provider";
+import type { RoastChunk, RoastProvider } from "../provider";
 import { analyzeIdea, createRng, deriveTitle, hashString, type Signals } from "./analyze";
 import {
   CLOSING_LINES,
@@ -311,12 +311,67 @@ export function demoFix(idea: string, roast: Roast): FixResult {
   );
 }
 
+/** The demo roast serialised exactly as the model would write it (same keys, same order). */
+export function demoRoastJson(idea: string): string {
+  const r = demoRoast(idea);
+  return JSON.stringify({
+    title: r.title,
+    summary: r.summary,
+    takes: r.takes.map((t) => ({
+      persona: t.persona,
+      headline: t.headline,
+      points: t.points,
+      strength: t.strength,
+      weakness: t.weakness,
+      score: t.score,
+    })),
+    debate: r.debate,
+    strengths: r.strengths,
+    weaknesses: r.weaknesses,
+    biggestRisk: r.biggestRisk,
+    biggestOpportunity: r.biggestOpportunity,
+    closingLine: r.closingLine,
+  });
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(signal.reason);
+    const t = setTimeout(resolve, ms);
+    signal?.addEventListener("abort", () => (clearTimeout(t), reject(signal.reason)), { once: true });
+  });
+}
+
+export interface DemoStreamOptions {
+  /** Characters per second, roughly a fast model's output speed. 0 = no delay (tests). */
+  cps?: number;
+  /** Simulated time before the first token ("thinking"). */
+  firstTokenMs?: number;
+}
+
 export class DemoProvider implements RoastProvider {
   readonly name = "demo";
   readonly mode = "demo" as const;
 
+  constructor(private readonly streamOptions: DemoStreamOptions = {}) {}
+
   async roast(idea: string): Promise<Roast> {
     return demoRoast(idea);
+  }
+
+  /** Streams the scripted roast at a model-like pace so the live UI behaves exactly as with a real model. */
+  async *roastStream(idea: string, signal?: AbortSignal): AsyncGenerator<RoastChunk> {
+    const { cps = 450, firstTokenMs = 900 } = this.streamOptions;
+    const json = demoRoastJson(idea);
+    if (cps > 0) await sleep(firstTokenMs, signal);
+    let i = 0;
+    while (i < json.length) {
+      const size = 3 + Math.floor(Math.random() * 12);
+      const text = json.slice(i, i + size);
+      i += size;
+      if (cps > 0) await sleep((text.length / cps) * 1000, signal);
+      yield { type: "text", text };
+    }
   }
 
   async fix(idea: string, roast: Roast): Promise<FixResult> {

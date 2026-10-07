@@ -1,4 +1,4 @@
-import { PERSONA_IDS, type FixChange, type FixResult, type PersonaId, type Roast } from "../types";
+import { PERSONA_IDS, type DebateLine, type FixChange, type FixResult, type PersonaId, type PersonaTake, type Roast } from "../types";
 import { clampScore, overallScore, scoresFromTakes, verdictFor } from "../scoring";
 import { InvalidResponseError } from "./provider";
 
@@ -42,7 +42,7 @@ function textList(value: unknown, max: number, limit: number): string[] {
   return out;
 }
 
-function personaId(value: unknown): PersonaId | null {
+export function personaId(value: unknown): PersonaId | null {
   if (typeof value !== "string") return null;
   const v = value.toLowerCase().trim();
   if ((PERSONA_IDS as readonly string[]).includes(v)) return v as PersonaId;
@@ -84,34 +84,38 @@ export function extractJson(raw: string): unknown {
   }
 }
 
+/** One persona's take, or null if it can't be shown safely. */
+export function normalizeTake(t: unknown): PersonaTake | null {
+  if (!isObj(t)) return null;
+  const id = personaId(t.persona);
+  const points = textList(t.points, 320, 3);
+  const headline = cleanText(t.headline, 180);
+  const strength = cleanText(t.strength, 240);
+  const weakness = cleanText(t.weakness, 240);
+  if (!id || !headline || points.length < 2 || !strength || !weakness) return null;
+  return { persona: id, score: clampScore(t.score), headline, points, strength, weakness };
+}
+
+export function normalizeDebate(value: unknown): DebateLine[] {
+  return (Array.isArray(value) ? value : [])
+    .filter(isObj)
+    .map((d) => ({ speaker: personaId(d.speaker), line: cleanText(d.line, 240) }))
+    .filter((d): d is DebateLine => d.speaker !== null && d.line.length > 0)
+    .slice(0, 6);
+}
+
 export function normalizeRoast(raw: unknown, mode: Roast["mode"]): Roast {
   if (!isObj(raw)) throw new InvalidResponseError("Model response was not an object");
 
   const takesRaw = Array.isArray(raw.takes) ? raw.takes : [];
-  const byPersona = new Map<PersonaId, Roast["takes"][number]>();
+  const byPersona = new Map<PersonaId, PersonaTake>();
   for (const t of takesRaw) {
-    if (!isObj(t)) continue;
-    const id = personaId(t.persona);
-    if (!id || byPersona.has(id)) continue;
-    const points = textList(t.points, 320, 3);
-    const headline = cleanText(t.headline, 180);
-    if (!headline || points.length < 2) continue;
-    byPersona.set(id, {
-      persona: id,
-      score: clampScore(t.score),
-      headline,
-      points,
-      strength: require(cleanText(t.strength, 240), `${id}.strength`),
-      weakness: require(cleanText(t.weakness, 240), `${id}.weakness`),
-    });
+    const take = normalizeTake(t);
+    if (take && !byPersona.has(take.persona)) byPersona.set(take.persona, take);
   }
   const takes = PERSONA_IDS.map((id) => require(byPersona.get(id), `a take from the ${id}`));
 
-  const debate = (Array.isArray(raw.debate) ? raw.debate : [])
-    .filter(isObj)
-    .map((d) => ({ speaker: personaId(d.speaker), line: cleanText(d.line, 240) }))
-    .filter((d): d is { speaker: PersonaId; line: string } => d.speaker !== null && d.line.length > 0)
-    .slice(0, 6);
+  const debate = normalizeDebate(raw.debate);
   if (debate.length < 3) throw new InvalidResponseError("Model response debate too short");
 
   const strengths = textList(raw.strengths, 240, 3);

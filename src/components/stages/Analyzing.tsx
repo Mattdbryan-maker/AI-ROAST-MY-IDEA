@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { analysisLog } from "@/lib/ai/demo/analyze";
 import { PERSONAS, PERSONA_ORDER } from "@/lib/personas";
 import { sfx } from "@/lib/sfx";
@@ -35,11 +35,14 @@ const KEYWORD =
 export function Analyzing({
   idea,
   ready,
+  caseTitle,
   variant = "roast",
   onComplete,
 }: {
   idea: string;
   ready: boolean;
+  /** The panel's name for the idea, once it has streamed in. */
+  caseTitle?: string;
   variant?: keyof typeof SEQUENCES;
   onComplete: () => void;
 }) {
@@ -58,9 +61,14 @@ export function Analyzing({
   const label = stalling ? seq.stalling[(step - base) % seq.stalling.length] : seq.steps[step];
   const finished = ready && step >= base - 1;
 
+  const onCompleteRef = useRef(onComplete);
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
+
   useEffect(() => {
     if (finished) {
-      const t = setTimeout(onComplete, reduced ? 200 : 900);
+      const t = setTimeout(() => onCompleteRef.current(), reduced ? 200 : 900);
       return () => clearTimeout(t);
     }
     const t = setTimeout(() => {
@@ -68,7 +76,7 @@ export function Analyzing({
       sfx.play("tick");
     }, step >= base - 1 ? STALL_MS : STEP_MS);
     return () => clearTimeout(t);
-  }, [step, finished, base, onComplete, reduced]);
+  }, [step, finished, base, reduced]);
 
   const progress = finished ? 100 : Math.min(92, Math.round(((step + 1) / (base + 0.6)) * 100) + Math.max(0, step - base) * 2);
   const words = useMemo(() => idea.slice(0, 320).split(/(\s+)/), [idea]);
@@ -80,6 +88,17 @@ export function Analyzing({
           {seq.label} #{caseNo} <span className="text-dim">·</span>{" "}
           <span className="text-[rgb(var(--accent))]">{finished ? "complete" : "in progress"}</span>
         </p>
+        <AnimatePresence>
+          {caseTitle && (
+            <motion.p
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-2 font-mono text-[11px] uppercase tracking-[0.3em] text-bone/80"
+            >
+              <span className="text-dim">Re:</span> {caseTitle}
+            </motion.p>
+          )}
+        </AnimatePresence>
 
         <div className="relative mt-4 h-[2.1em] overflow-hidden font-display text-[clamp(2.4rem,7vw,5.6rem)] uppercase leading-none" aria-live="polite">
           <AnimatePresence mode="popLayout" initial={false}>

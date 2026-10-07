@@ -1,15 +1,12 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it, vi } from "vitest";
 import { AnthropicProvider } from "@/lib/ai/anthropic";
-import { demoRoast } from "@/lib/ai/demo/engine";
+import { demoRoastJson } from "@/lib/ai/demo/engine";
 import { ProviderError } from "@/lib/ai/provider";
 import { RoastSchema } from "@/lib/types";
 
 /** A model-shaped response built from the demo engine, so it's realistic and valid. */
-function modelJson() {
-  const { overall: _o, verdict: _v, mode: _m, ...rest } = demoRoast("A subscription box of houseplants for people who kill houseplants, £15/month.");
-  return JSON.stringify(rest);
-}
+const modelJson = () => demoRoastJson("A subscription box of houseplants for people who kill houseplants, £15/month.");
 
 function fakeClient(responses: { text?: string; stop_reason?: string }[]) {
   const create = vi.fn();
@@ -60,5 +57,45 @@ describe("AnthropicProvider", () => {
     await new AnthropicProvider({ apiKey: "test", client, model: "claude-haiku-5-5" }).roast("Fallback check idea.");
     expect(create.mock.calls[0][0].fallbacks).toBeUndefined();
     expect(create.mock.calls[0][0].betas).toBeUndefined();
+  });
+});
+
+describe("AnthropicProvider.roastStream", () => {
+  function streamingClient(events: unknown[], stopReason = "end_turn") {
+    const stream = vi.fn(() => ({
+      async *[Symbol.asyncIterator]() {
+        yield* events;
+      },
+      finalMessage: async () => ({ stop_reason: stopReason }),
+    }));
+    return { client: { beta: { messages: { stream } } } as unknown as Anthropic, stream };
+  }
+  const text = (t: string) => ({ type: "content_block_delta", index: 1, delta: { type: "text_delta", text: t } });
+
+  it("yields text deltas, skips thinking, and restarts on a fallback block", async () => {
+    const { client, stream } = streamingClient([
+      { type: "content_block_start", index: 0, content_block: { type: "thinking", thinking: "" } },
+      { type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: "hmm" } },
+      text('{"title":'),
+      { type: "content_block_start", index: 2, content_block: { type: "fallback" } },
+      text('{"title":"ok"}'),
+    ]);
+    const chunks = [];
+    for await (const c of new AnthropicProvider({ apiKey: "t", client }).roastStream("An idea to stream.")) chunks.push(c);
+    expect(chunks).toEqual([
+      { type: "text", text: '{"title":' },
+      { type: "restart" },
+      { type: "text", text: '{"title":"ok"}' },
+    ]);
+    const params = (stream.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(params.fallbacks).toBe("default");
+  });
+
+  it("raises a refusal after the stream ends", async () => {
+    const { client } = streamingClient([text("{")], "refusal");
+    const consume = async () => {
+      for await (const _ of new AnthropicProvider({ apiKey: "t", client }).roastStream("Refused idea here.")) void _;
+    };
+    await expect(consume()).rejects.toMatchObject({ code: "refused" });
   });
 });

@@ -1,16 +1,17 @@
 "use client";
 
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { RoastApiError, requestFix, requestRoast } from "@/lib/client-api";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { RoastApiError, requestFix, streamRoast } from "@/lib/client-api";
+import { EMPTY_LIVE, liveReducer } from "@/lib/live-roast";
 import { sfx } from "@/lib/sfx";
-import type { FixResult, Roast } from "@/lib/types";
+import type { FixResult } from "@/lib/types";
 import { ShareDialog } from "./ShareDialog";
 import { Analyzing } from "./stages/Analyzing";
 import { Deliberation } from "./stages/Deliberation";
 import { FixResultView } from "./stages/FixResultView";
 import { Landing } from "./stages/Landing";
-import { Trial } from "./stages/Trial";
+import { LiveBadge, Trial } from "./stages/Trial";
 import { Verdict } from "./stages/Verdict";
 import { Atmosphere, useAccent } from "./ui/Atmosphere";
 import { Button } from "./ui/Button";
@@ -21,6 +22,9 @@ import { TopBar } from "./ui/TopBar";
  *
  *   landing → analyzing → trial → deliberation → verdict ⇄ fixing → fixed
  *                  ↘ error ↙                        ↑ (skip)
+ *
+ * The roast streams in live (see lib/live-roast.ts): the trial starts as soon
+ * as the first panelist begins speaking, while the rest are still being written.
  */
 type Stage =
   | { name: "landing" }
@@ -35,11 +39,16 @@ type Stage =
 export function RoastExperience() {
   const [stage, setStage] = useState<Stage>({ name: "landing" });
   const [idea, setIdea] = useState("");
-  const [roast, setRoast] = useState<Roast | null>(null);
+  const [live, dispatch] = useReducer(liveReducer, EMPTY_LIVE);
+  const roast = live.roast ?? null;
   const [fix, setFix] = useState<FixResult | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [mode, setMode] = useState<"ai" | "demo" | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const stageRef = useRef<Stage["name"]>("landing");
+  useEffect(() => {
+    stageRef.current = stage.name;
+  }, [stage.name]);
 
   useEffect(() => {
     fetch("/api/status")
@@ -53,6 +62,12 @@ export function RoastExperience() {
   }, [stage.name]);
 
   const go = useCallback((next: Stage) => setStage(next), []);
+  // Stable stage transitions: the page re-renders on every stream event, and
+  // stage timers must not be reset by a new callback identity each time.
+  const toTrial = useCallback(() => go({ name: "trial" }), [go]);
+  const toDeliberation = useCallback(() => go({ name: "deliberation" }), [go]);
+  const toVerdict = useCallback(() => go({ name: "verdict", instant: false }), [go]);
+  const toFixed = useCallback(() => go({ name: "fixed" }), [go]);
 
   const startRoast = useCallback(
     (pitch: string) => {
@@ -60,15 +75,22 @@ export function RoastExperience() {
       const controller = new AbortController();
       abortRef.current = controller;
       setIdea(pitch);
-      setRoast(null);
+      dispatch({ type: "clear" });
       setFix(null);
       sfx.play("whoosh");
       go({ name: "analyzing" });
-      requestRoast(pitch, controller.signal)
-        .then((r) => {
-          setRoast(r);
-          setMode(r.mode);
-        })
+      streamRoast(
+        pitch,
+        (event) => {
+          dispatch(event);
+          if (event.type === "start") setMode(event.mode);
+          // The server is starting over (a retry): send the audience back to the analysis screen.
+          if (event.type === "reset" && (stageRef.current === "trial" || stageRef.current === "deliberation")) {
+            go({ name: "analyzing" });
+          }
+        },
+        controller.signal,
+      )
         .catch((err: unknown) => {
           if ((err as Error).name === "AbortError") return;
           go({
@@ -103,7 +125,7 @@ export function RoastExperience() {
 
   const restart = useCallback(() => {
     abortRef.current?.abort();
-    setRoast(null);
+    dispatch({ type: "clear" });
     setFix(null);
     go({ name: "landing" });
   }, [go]);
@@ -127,16 +149,24 @@ export function RoastExperience() {
               {stage.name === "landing" && <Landing initialIdea={idea} onSubmit={startRoast} />}
 
               {stage.name === "analyzing" && (
-                <Analyzing idea={idea} ready={roast !== null} onComplete={() => go({ name: "trial" })} />
+                <Analyzing
+                  key={live.generation}
+                  idea={idea}
+                  caseTitle={live.title}
+                  ready={roast !== null || !!live.takes[0]?.headline}
+                  onComplete={toTrial}
+                />
               )}
 
-              {stage.name === "trial" && roast && (
-                <Trial roast={roast} onComplete={() => go({ name: "deliberation" })} onSkip={() => go({ name: "verdict", instant: false })} />
+              {stage.name === "trial" && (
+                <Trial live={live} onComplete={toDeliberation} onSkip={toVerdict} />
               )}
 
-              {stage.name === "deliberation" && roast && (
-                <Deliberation roast={roast} onComplete={() => go({ name: "verdict", instant: false })} />
+              {stage.name === "deliberation" && (
+                <Deliberation live={live} onComplete={toVerdict} />
               )}
+
+              {stage.name === "verdict" && !roast && <AwaitingVerdict />}
 
               {stage.name === "verdict" && roast && (
                 <Verdict
@@ -150,7 +180,7 @@ export function RoastExperience() {
               )}
 
               {stage.name === "fixing" && (
-                <Analyzing idea={idea} ready={fix !== null} variant="fix" onComplete={() => go({ name: "fixed" })} />
+                <Analyzing idea={idea} ready={fix !== null} variant="fix" onComplete={toFixed} />
               )}
 
               {stage.name === "fixed" && roast && fix && (
@@ -177,6 +207,28 @@ export function RoastExperience() {
       </div>
       {roast && <ShareDialog roast={roast} open={shareOpen} onClose={() => setShareOpen(false)} />}
     </MotionConfig>
+  );
+}
+
+/** Someone skipped ahead of the stream: hold the room until the panel finishes. */
+function AwaitingVerdict() {
+  useAccent("120 120 140");
+  return (
+    <div className="mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center px-6 py-20 text-center" aria-live="polite">
+      <LiveBadge label="Still in session" />
+      <h1 className="mt-6 font-display text-[clamp(2.4rem,8vw,4.5rem)] uppercase leading-[0.92]">The panel is still arguing</h1>
+      <p className="mt-4 text-muted">The verdict lands the moment they agree.</p>
+      <div className="mt-8 flex gap-2" aria-hidden>
+        {[0, 1, 2].map((i) => (
+          <motion.span
+            key={i}
+            className="h-2.5 w-2.5 rounded-full bg-bone"
+            animate={{ opacity: [0.2, 1, 0.2] }}
+            transition={{ duration: 1, repeat: Infinity, delay: i * 0.15 }}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 

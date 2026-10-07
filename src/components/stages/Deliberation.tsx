@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { PERSONAS } from "@/lib/personas";
 import { VERDICT_THRESHOLDS } from "@/lib/scoring";
 import { sfx } from "@/lib/sfx";
-import type { Roast } from "@/lib/types";
+import type { LiveRoast } from "@/lib/live-roast";
 import { useAccent } from "../ui/Atmosphere";
 import { Button } from "../ui/Button";
 import { PersonaSigil } from "../ui/PersonaSigil";
@@ -14,21 +14,33 @@ import { Typewriter } from "../ui/Typewriter";
 const LINE_GAP_MS = 650;
 const AUTO_ADVANCE_MS = 2600;
 
-export function Deliberation({ roast, onComplete }: { roast: Roast; onComplete: () => void }) {
+/**
+ * The panel argues it out. Lines stream in as the model writes them; each one
+ * types out live, and the verdict unlocks once the full roast has arrived.
+ */
+export function Deliberation({ live, onComplete }: { live: LiveRoast; onComplete: () => void }) {
   useAccent("255 77 46");
   const reduced = useReducedMotion();
   const [shown, setShown] = useState(1);
   const [typed, setTyped] = useState(0);
-  const allDone = typed >= roast.debate.length;
+  const debate = (live.roast?.debate ?? live.debate).slice(0, 6);
+  const ready = !!live.roast;
+  // A line is still being written if it's the last one we have and the stream hasn't closed it.
+  const lineStreaming = (i: number) => !ready && i === debate.length - 1 && !live.debateLastDone;
+  const allDone = ready && typed >= debate.length;
   const endRef = useRef<HTMLDivElement>(null);
   const ctaRef = useRef<HTMLDivElement>(null);
+  const onCompleteRef = useRef(onComplete);
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
 
   // Reveal the next line a beat after the previous one finishes typing.
   useEffect(() => {
-    if (typed < shown || shown >= roast.debate.length) return;
+    if (typed < shown || shown >= debate.length) return;
     const t = setTimeout(() => setShown((s) => s + 1), reduced ? 0 : LINE_GAP_MS);
     return () => clearTimeout(t);
-  }, [typed, shown, roast.debate.length, reduced]);
+  }, [typed, shown, debate.length, reduced]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "nearest" });
@@ -38,12 +50,12 @@ export function Deliberation({ roast, onComplete }: { roast: Roast; onComplete: 
     if (!allDone) return;
     sfx.play("riser");
     ctaRef.current?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "center" });
-    const t = setTimeout(onComplete, AUTO_ADVANCE_MS);
+    const t = setTimeout(() => onCompleteRef.current(), AUTO_ADVANCE_MS);
     return () => clearTimeout(t);
-  }, [allDone, onComplete, reduced]);
+  }, [allDone, reduced]);
 
-  const speaking = roast.debate[Math.min(shown, roast.debate.length) - 1];
-  const speakerScore = roast.takes.find((t) => t.persona === speaking.speaker)?.score ?? 50;
+  const speaking = debate[Math.min(shown, debate.length) - 1];
+  const speakerScore = live.takes.find((t) => t.persona === speaking?.speaker)?.final?.score ?? 50;
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col px-4 pb-16 pt-6 sm:px-8 sm:pt-10">
@@ -55,10 +67,16 @@ export function Deliberation({ roast, onComplete }: { roast: Roast; onComplete: 
         <p className="mt-3 text-muted">Off the record. Mostly.</p>
       </div>
 
-      <TensionMeter score={allDone ? 50 : speakerScore} speaker={allDone ? null : speaking.speaker} />
+      <TensionMeter score={allDone || !speaking ? 50 : speakerScore} speaker={allDone || !speaking ? null : speaking.speaker} />
+
+      {debate.length === 0 && (
+        <p className="mt-10 flex items-center justify-center gap-3 font-mono text-[11px] uppercase tracking-[0.3em] text-muted" aria-live="polite">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-kill" /> The panel is conferring…
+        </p>
+      )}
 
       <ul className="mt-10 flex flex-col gap-4" aria-live="polite">
-        {roast.debate.slice(0, shown).map((line, i) => {
+        {debate.slice(0, shown).map((line, i) => {
           const p = PERSONAS[line.speaker];
           const right = i % 2 === 1;
           return (
@@ -82,6 +100,7 @@ export function Deliberation({ roast, onComplete }: { roast: Roast; onComplete: 
                     text={line.line}
                     cps={60}
                     delay={0.2}
+                    streaming={lineStreaming(i)}
                     onDone={() => setTyped((t) => Math.max(t, i + 1))}
                   />
                 </p>
@@ -112,7 +131,10 @@ export function Deliberation({ roast, onComplete }: { roast: Roast; onComplete: 
 function TensionMeter({ score, speaker }: { score: number; speaker: keyof typeof PERSONAS | null }) {
   const reduced = useReducedMotion();
   return (
-    <div className="sticky top-0 z-20 -mx-4 mt-8 bg-gradient-to-b from-[#050507] via-[#050507]/90 to-transparent px-4 pb-6 pt-4" aria-hidden>
+    <div
+      className="sticky top-0 z-20 -mx-4 mt-8 bg-gradient-to-b from-[#050507] via-[#050507]/90 to-transparent px-4 pb-6 pt-4 [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]"
+      aria-hidden
+    >
       <div className="mx-auto w-full max-w-2xl">
       <div className="mb-2 flex justify-between font-mono text-[10px] uppercase tracking-[0.3em]">
         <span className="text-kill">Kill it</span>

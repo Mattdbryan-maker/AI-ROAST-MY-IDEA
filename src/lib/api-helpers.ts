@@ -18,52 +18,97 @@ export function errorResponse(code: ApiErrorCode, message: string, headers?: Hea
   return Response.json(body, { status: STATUS[code], headers });
 }
 
+/** Maps anything thrown while running the AI to a safe, user-facing error. Logs the detail server-side. */
+export function toPublicError(err: unknown): ApiError["error"] {
+  if (err instanceof ProviderError) {
+    console.error(`[ai] ${err.code}: ${err.message}`);
+    const message =
+      err.code === "refused"
+        ? "The panel refused to judge this one. Try a different idea."
+        : err.code === "invalid_response"
+          ? "The panel got into a fistfight and returned nonsense. Please try again."
+          : "The panel walked out (AI provider error). Please try again.";
+    return { code: err.code, message };
+  }
+  console.error("[ai] unexpected error", err);
+  return { code: "internal", message: "Something broke backstage. Please try again." };
+}
+
 const limiter = createRateLimiter({
   limit: Number(process.env.RATE_LIMIT_PER_10_MIN ?? 20),
   windowMs: 10 * 60 * 1000,
 });
 
-/** Shared request pipeline for the AI routes: rate limit → parse → validate → run → map errors. */
-export async function handleAiRequest<S extends z.ZodType, R>(
+/** Rate limit → parse → validate. Returns the input, or the error response to send. */
+export async function parseAiRequest<S extends z.ZodType>(
   request: Request,
   schema: S,
-  run: (input: z.infer<S>, signal: AbortSignal) => Promise<R>,
-): Promise<Response> {
+): Promise<{ ok: true; data: z.infer<S> } | { ok: false; response: Response }> {
   const rl = limiter(clientKey(request));
   if (!rl.ok) {
-    return errorResponse(
-      "rate_limited",
-      "The panel needs a breather. Try again in a few minutes.",
-      { "Retry-After": String(rl.retryAfterSeconds) },
-    );
+    return {
+      ok: false,
+      response: errorResponse("rate_limited", "The panel needs a breather. Try again in a few minutes.", {
+        "Retry-After": String(rl.retryAfterSeconds),
+      }),
+    };
   }
 
   let json: unknown;
   try {
     json = await request.json();
   } catch {
-    return errorResponse("invalid_input", "Request body must be JSON.");
+    return { ok: false, response: errorResponse("invalid_input", "Request body must be JSON.") };
   }
   const parsed = schema.safeParse(json);
   if (!parsed.success) {
-    return errorResponse("invalid_input", parsed.error.issues[0]?.message ?? "Invalid request.");
+    return { ok: false, response: errorResponse("invalid_input", parsed.error.issues[0]?.message ?? "Invalid request.") };
   }
+  return { ok: true, data: parsed.data };
+}
 
+/** Shared pipeline for the JSON (non-streaming) AI routes. */
+export async function handleAiRequest<S extends z.ZodType, R>(
+  request: Request,
+  schema: S,
+  run: (input: z.infer<S>, signal: AbortSignal) => Promise<R>,
+): Promise<Response> {
+  const input = await parseAiRequest(request, schema);
+  if (!input.ok) return input.response;
   try {
-    const result = await run(parsed.data, request.signal);
+    const result = await run(input.data, request.signal);
     return Response.json(result, { headers: { "Cache-Control": "no-store" } });
   } catch (err) {
-    if (err instanceof ProviderError) {
-      console.error(`[ai] ${err.code}: ${err.message}`);
-      const message =
-        err.code === "refused"
-          ? "The panel refused to judge this one. Try a different idea."
-          : err.code === "invalid_response"
-            ? "The panel got into a fistfight and returned nonsense. Please try again."
-            : "The panel walked out (AI provider error). Please try again.";
-      return errorResponse(err.code, message);
-    }
-    console.error("[ai] unexpected error", err);
-    return errorResponse("internal", "Something broke backstage. Please try again.");
+    const error = toPublicError(err);
+    return errorResponse(error.code, error.message);
   }
+}
+
+/** Serialises an async stream of events as newline-delimited JSON. Errors become a final `error` event. */
+export function ndjsonResponse<E>(events: AsyncIterable<E>, onCancel: () => void): Response {
+  const encoder = new TextEncoder();
+  const iterator = events[Symbol.asyncIterator]();
+  const body = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const { value, done } = await iterator.next();
+        if (done) return controller.close();
+        controller.enqueue(encoder.encode(`${JSON.stringify(value)}\n`));
+      } catch (err) {
+        controller.enqueue(encoder.encode(`${JSON.stringify({ type: "error", ...toPublicError(err) })}\n`));
+        controller.close();
+      }
+    },
+    cancel() {
+      onCancel();
+      void iterator.return?.();
+    },
+  });
+  return new Response(body, {
+    headers: {
+      "Content-Type": "application/x-ndjson; charset=utf-8",
+      "Cache-Control": "no-store, no-transform",
+      "X-Accel-Buffering": "no",
+    },
+  });
 }

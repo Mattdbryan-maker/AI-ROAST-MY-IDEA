@@ -14,9 +14,9 @@ Pitch a startup idea, side hustle or app concept and watch it get put on trial b
 ## The experience
 
 1. **Opening.** A kinetic title sequence, a pitch box and one-click example ideas.
-2. **Analysis.** A theatrical scan of your pitch: a live tribunal log, keyword highlighting and the panel joining one by one. It runs for at least ~4s and keeps going for as long as the AI takes.
-3. **The trial.** Each panelist takes the stand with their own colour, sigil and voice. Their opening line types out, their arguments land one at a time, then their score counts up. It auto-advances, pauses while you hover, and supports →, Next and Skip.
-4. **Deliberation.** The panel argues with each other while a game-show tension meter swings toward whoever is talking.
+2. **Analysis.** A theatrical scan of your pitch: a live tribunal log, keyword highlighting and the panel joining one by one. The case title appears as soon as the panel names your idea, and the trial starts the moment the first panelist begins speaking.
+3. **The trial (live).** The panel streams in as the model writes it. Each panelist takes the stand with their own colour, sigil and voice, and their words type out as they arrive. Their score lands only once their take is complete. If you reach a panelist who hasn't started, you see them gathering their thoughts. It auto-advances, pauses while you hover, and supports →, Next and Skip.
+4. **Deliberation (live).** The panel argues with each other line by line as the argument is generated, while a game-show tension meter swings toward whoever is talking.
 5. **The verdict.** The room goes dark, the score counts up, then the verdict stamp slams down with a screen shake, a flash and a shockwave.
 6. **Breakdown.** Scorecards with 3D tilt, strengths and weaknesses, the biggest risk and biggest opportunity.
 7. **FIX IT.** Idea 2.0 with a before/after projected score, a rewritten pitch, what changed and why (each change linked to the objection it answers), a projected re-score and your next three moves. Then **Put version 2 on trial**.
@@ -57,7 +57,8 @@ src/
   app/
     page.tsx                 → <RoastExperience/> (the whole show is one page)
     r/[payload]/page.tsx     → share page (result decoded from the URL; no database)
-    api/roast/route.ts       → POST { idea }        → Roast
+    api/roast/stream/route.ts → POST { idea }       → NDJSON event stream (the live panel)
+    api/roast/route.ts       → POST { idea }        → Roast (non-streaming JSON)
     api/fix/route.ts         → POST { idea, roast } → FixResult
     api/card/route.tsx       → PNG verdict card (next/og), story or og format
     api/status/route.ts      → { mode: "ai" | "demo" }
@@ -71,12 +72,16 @@ src/
     scoring.ts               → weighted overall score + verdict thresholds
     personas.ts              → panel identities (names, colours, taglines)
     share.ts                 → compact, validated share payloads
+    partial-json.ts          → parses an unfinished JSON prefix and reports what's still open
+    stream-events.ts         → the streaming event contract
+    live-roast.ts            → client reducer: stream events → live panel state
     ai/
       provider.ts            → RoastProvider interface + typed errors
       index.ts               → picks the provider from env
       anthropic.ts           → Claude provider
       prompts.ts             → system prompts + structured-output schemas
       normalize.ts           → repairs and validates model output
+      stream.ts              → turns streamed JSON into live UI events (+ retry/restart)
       demo/                  → offline demo engine (analyze, copy, engine)
 ```
 
@@ -84,6 +89,7 @@ src/
 
 - **Provider-agnostic AI layer.** The UI and API routes only know `RoastProvider` (`roast()` and `fix()`). Claude and the demo engine both implement it. To add another provider, implement the interface and register it in `lib/ai/index.ts`.
 - **Structured output, then distrust it anyway.** The Claude call uses structured outputs (a JSON schema generated from Zod), so responses have the right shape. `normalize.ts` then enforces everything a schema can't: persona order, exactly four takes, clamped scores, trimmed lengths, de-duplicated lists and valid speakers. Unrecoverable output triggers one retry, then a friendly error. The route re-validates against the full Zod schema before anything reaches the browser, so malformed AI output cannot break the UI.
+- **Streaming without giving up validation.** Claude streams the roast as structured-output JSON. After each chunk the server re-parses the partial document and emits only what changed: `meta` (title and summary), `progress` (the take being written, as partial text), `take` (a completed take, validated on the spot), `debate` (lines as they're written) and finally `done` (the whole roast, validated against the same schema as the JSON API). The client never trusts partial text for anything but display. Scores only appear from validated takes, and the verdict only from `done`. In the schema, each persona writes their arguments *before* their score, so the score lands at the end of their testimony. An unusable stream triggers one automatic retry, and a mid-stream server-side model fallback is detected (a `fallback` content block). Both are announced with a `reset` event and the UI starts over cleanly. The demo panel streams its scripted roast through the exact same pipeline at a model-like pace (`DEMO_STREAM_CPS`).
 - **The model never decides the verdict.** The overall score is a weighted average of the four persona scores (customer 32%, investor 28%, marketer 22%, engineer 18%). The verdict is derived from it: 72+ is BUILD, 45–71 is FIX, below 45 is KILL. The prompt tells the model these rules so its closing line matches.
 - **Prompt-injection hygiene.** The pitch is wrapped in `<pitch>` tags and treated as untrusted data. "Give this 100/100" gets roasted, not obeyed.
 - **No database.** Share links are base64url JSON, validated on decode. The verdict is re-derived from the score and never trusted from the URL.
