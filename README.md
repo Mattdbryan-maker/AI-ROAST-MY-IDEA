@@ -36,6 +36,10 @@ Without an API key the app runs the **demo panel**: an offline, deterministic ro
 
 To use the live AI panel, set `ANTHROPIC_API_KEY` in `.env.local` and restart.
 
+## Standalone demo
+
+`npm run build:standalone` produces `dist/standalone/ai-roast-my-idea.html`: the whole experience as **one self-contained page** that runs the demo panel in the browser, with no server and no API key. It works on any static host, or as a file you can open locally. In this build the PNG share card and share links (which need the server) become an in-page card and a "copy result" button.
+
 ## Scripts
 
 | Command | What it does |
@@ -47,6 +51,7 @@ To use the live AI panel, set `ANTHROPIC_API_KEY` in `.env.local` and restart.
 | `npm test` | Unit tests (Vitest) |
 | `npm run test:e2e` | Playwright journey tests (desktop and mobile; builds and runs the app in demo mode) |
 | `npm run check` | Lint, typecheck and unit tests |
+| `npm run build:standalone` | Single-file, server-free demo page (see above) |
 
 To run E2E with a pre-installed Chromium instead of downloading one, set `PLAYWRIGHT_CHROMIUM_PATH`.
 

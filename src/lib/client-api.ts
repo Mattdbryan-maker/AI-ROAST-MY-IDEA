@@ -1,3 +1,4 @@
+import { STANDALONE } from "./runtime";
 import type { RoastStreamEvent } from "./stream-events";
 import type { ApiError, FixResult, Roast } from "./types";
 
@@ -33,14 +34,17 @@ async function post<T>(url: string, body: unknown, signal?: AbortSignal): Promis
 
 export const requestRoast = (idea: string, signal?: AbortSignal) => post<Roast>("/api/roast", { idea }, signal);
 
-export const requestFix = (idea: string, roast: Roast, signal?: AbortSignal) =>
-  post<FixResult>("/api/fix", { idea, roast }, signal);
+export async function requestFix(idea: string, roast: Roast, signal?: AbortSignal): Promise<FixResult> {
+  if (STANDALONE) return (await import("./standalone-demo")).localFix(idea, roast);
+  return post<FixResult>("/api/fix", { idea, roast }, signal);
+}
 
 /**
  * Streams a roast from /api/roast/stream, calling `onEvent` for each event as
  * it arrives. Resolves with the final roast; rejects with RoastApiError.
  */
 export async function streamRoast(idea: string, onEvent: (event: RoastStreamEvent) => void, signal?: AbortSignal): Promise<Roast> {
+  if (STANDALONE) return (await import("./standalone-demo")).localStreamRoast(idea, onEvent, signal);
   let res: Response;
   try {
     res = await fetch("/api/roast/stream", {

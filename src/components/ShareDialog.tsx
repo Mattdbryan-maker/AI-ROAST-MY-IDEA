@@ -2,6 +2,8 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { PERSONAS, PERSONA_ORDER } from "@/lib/personas";
+import { STANDALONE } from "@/lib/runtime";
 import { VERDICT_COPY } from "@/lib/scoring";
 import { encodeShare, toSharePayload } from "@/lib/share";
 import type { Roast } from "@/lib/types";
@@ -82,6 +84,16 @@ export function ShareDialog({ roast, open, onClose }: { roast: Roast; open: bool
     }
   };
 
+  const copyText = async () => {
+    const lines = PERSONA_ORDER.map((id) => `${PERSONAS[id].name} ${roast.takes.find((t) => t.persona === id)?.score ?? "-"}`);
+    try {
+      await navigator.clipboard.writeText(`${shareText}\n${lines.join(" · ")}\n“${roast.closingLine}”`);
+      flash("Result copied");
+    } catch {
+      flash("Copy blocked — select the text instead");
+    }
+  };
+
   const canNativeShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
   const tweet = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`;
 
@@ -108,14 +120,20 @@ export function ShareDialog({ roast, open, onClose }: { roast: Roast; open: bool
           >
             <div className="relative mx-auto w-full max-w-[260px] sm:max-w-none">
               <div className="relative aspect-[4/5] overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
-                {!imgLoaded && <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/[0.06] to-transparent" />}
-                {/* eslint-disable-next-line @next/next/no-img-element -- dynamic, generated PNG */}
-                <img
-                  src={cardUrl}
-                  alt={`Share card: ${roast.title}, ${roast.overall} out of 100, ${v.label}`}
-                  className={`h-full w-full object-cover transition-opacity duration-500 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
-                  onLoad={() => setImgLoaded(true)}
-                />
+                {STANDALONE ? (
+                  <CardPreview roast={roast} />
+                ) : (
+                  <>
+                    {!imgLoaded && <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/[0.06] to-transparent" />}
+                    {/* eslint-disable-next-line @next/next/no-img-element -- dynamic, generated PNG */}
+                    <img
+                      src={cardUrl}
+                      alt={`Share card: ${roast.title}, ${roast.overall} out of 100, ${v.label}`}
+                      className={`h-full w-full object-cover transition-opacity duration-500 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
+                      onLoad={() => setImgLoaded(true)}
+                    />
+                  </>
+                )}
               </div>
             </div>
             <div className="flex min-w-0 flex-col">
@@ -136,9 +154,27 @@ export function ShareDialog({ roast, open, onClose }: { roast: Roast; open: bool
                 </button>
               </div>
               <p className="mt-3 text-sm text-muted">
-                A card made for stories and timelines. The link opens a result page for your friends — your full pitch stays private.
+                {STANDALONE
+                  ? "You're on the standalone demo. In the full app this becomes a downloadable card and a share link. Here you can copy the result as text."
+                  : "A card made for stories and timelines. The link opens a result page for your friends — your full pitch stays private."}
               </p>
 
+              {STANDALONE ? (
+                <div className="mt-6 grid gap-2.5">
+                  <Button variant="primary" onClick={copyText}>
+                    Copy result
+                  </Button>
+                  <a
+                    href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/[0.04] px-6 py-4 font-mono text-[13px] font-semibold uppercase tracking-[0.18em] text-bone transition hover:border-white/35 hover:bg-white/[0.08]"
+                  >
+                    Post on 𝕏
+                  </a>
+                </div>
+              ) : (
+              <>
               <div className="mt-6 grid gap-2.5">
                 {canNativeShare && (
                   <Button variant="primary" onClick={nativeShare}>
@@ -163,6 +199,8 @@ export function ShareDialog({ roast, open, onClose }: { roast: Roast; open: bool
               <div className="mt-4 truncate rounded-xl border border-white/[0.07] bg-black/40 px-3 py-2 font-mono text-[11px] text-dim" title={shareUrl}>
                 {shareUrl}
               </div>
+              </>
+              )}
               <p className="mt-3 h-5 font-mono text-[11px] uppercase tracking-[0.2em] text-build" aria-live="polite">
                 {status}
               </p>
@@ -171,5 +209,46 @@ export function ShareDialog({ roast, open, onClose }: { roast: Roast; open: bool
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+/** An HTML version of the share card for the standalone demo, where the PNG renderer (a server route) isn't available. */
+function CardPreview({ roast }: { roast: Roast }) {
+  const v = VERDICT_COPY[roast.verdict];
+  return (
+    <div
+      className="flex h-full flex-col p-4"
+      style={{ background: `radial-gradient(ellipse 90% 55% at 50% 0%, rgb(${v.rgb} / 0.3), transparent 70%), #050507` }}
+    >
+      <p className="font-display text-xs tracking-wide">
+        AI ROAST <span style={{ color: v.color }}>MY IDEA</span>
+      </p>
+      <p className="mt-4 font-display text-xl uppercase leading-none">{roast.title}</p>
+      <div className="mt-3 flex items-end justify-between">
+        <span className="font-display text-6xl leading-[0.85]" style={{ color: v.color }}>
+          {roast.overall}
+        </span>
+        <span className="-rotate-3 rounded-md border-2 px-2 font-display text-xl uppercase" style={{ borderColor: v.color, color: v.color }}>
+          {v.label}
+        </span>
+      </div>
+      <ul className="mt-4 space-y-1.5">
+        {PERSONA_ORDER.map((id) => {
+          const score = roast.takes.find((t) => t.persona === id)?.score ?? 0;
+          return (
+            <li key={id} className="flex items-center gap-2">
+              <span className="w-16 font-display text-xs" style={{ color: PERSONAS[id].color }}>
+                {PERSONAS[id].name}
+              </span>
+              <span className="h-1 flex-1 rounded-full bg-white/10">
+                <span className="block h-full rounded-full" style={{ width: `${score}%`, background: PERSONAS[id].color }} />
+              </span>
+              <span className="w-5 text-right font-display text-xs">{score}</span>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mt-auto text-[11px] font-medium leading-snug text-bone/85">“{roast.closingLine}”</p>
+    </div>
   );
 }

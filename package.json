@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "check": "npm run lint && npm run typecheck && npm run test"
+    "check": "npm run lint && npm run typecheck && npm run test",
+    "build:standalone": "node scripts/build-standalone.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.132.0",
@@ -24,10 +25,12 @@
   },
   "devDependencies": {
     "@playwright/test": "1.56",
+    "@tailwindcss/cli": "^4.3.3",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "esbuild": "^0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.4.0",
     "tailwindcss": "^4",

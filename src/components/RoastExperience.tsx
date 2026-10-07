@@ -4,6 +4,7 @@ import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { RoastApiError, requestFix, streamRoast } from "@/lib/client-api";
 import { EMPTY_LIVE, liveReducer } from "@/lib/live-roast";
+import { STANDALONE } from "@/lib/runtime";
 import { sfx } from "@/lib/sfx";
 import type { FixResult } from "@/lib/types";
 import { ShareDialog } from "./ShareDialog";
@@ -43,7 +44,7 @@ export function RoastExperience() {
   const roast = live.roast ?? null;
   const [fix, setFix] = useState<FixResult | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
-  const [mode, setMode] = useState<"ai" | "demo" | null>(null);
+  const [mode, setMode] = useState<"ai" | "demo" | null>(STANDALONE ? "demo" : null);
   const abortRef = useRef<AbortController | null>(null);
   const stageRef = useRef<Stage["name"]>("landing");
   useEffect(() => {
@@ -51,6 +52,7 @@ export function RoastExperience() {
   }, [stage.name]);
 
   useEffect(() => {
+    if (STANDALONE) return;
     fetch("/api/status")
       .then((r) => r.json())
       .then((s: { mode: "ai" | "demo" }) => setMode(s.mode))
