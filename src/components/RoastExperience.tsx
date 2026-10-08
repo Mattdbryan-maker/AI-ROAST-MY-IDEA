@@ -55,7 +55,7 @@ export function RoastExperience() {
     if (STANDALONE) return;
     fetch("/api/status")
       .then((r) => r.json())
-      .then((s: { mode: "ai" | "demo" }) => setMode(s.mode))
+      .then((s: { mode: string }) => setMode(s.mode === "ai" || s.mode === "demo" ? s.mode : null))
       .catch(() => setMode(null));
   }, []);
 

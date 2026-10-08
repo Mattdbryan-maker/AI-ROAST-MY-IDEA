@@ -1,6 +1,6 @@
 import { getProvider } from "@/lib/ai";
 import { streamRoastEvents } from "@/lib/ai/stream";
-import { ndjsonResponse, parseAiRequest } from "@/lib/api-helpers";
+import { errorResponse, ndjsonResponse, parseAiRequest, toPublicError } from "@/lib/api-helpers";
 import { RoastRequestSchema } from "@/lib/types";
 
 export const maxDuration = 120;
@@ -17,5 +17,12 @@ export async function POST(request: Request) {
   const controller = new AbortController();
   request.signal.addEventListener("abort", () => controller.abort(), { once: true });
 
-  return ndjsonResponse(streamRoastEvents(getProvider(), input.data.idea, controller.signal), () => controller.abort());
+  let provider;
+  try {
+    provider = getProvider();
+  } catch (err) {
+    const error = toPublicError(err);
+    return errorResponse(error.code, error.message);
+  }
+  return ndjsonResponse(streamRoastEvents(provider, input.data.idea, controller.signal), () => controller.abort());
 }

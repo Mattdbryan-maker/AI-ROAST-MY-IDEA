@@ -10,18 +10,22 @@ import { PersonaSigil } from "../ui/PersonaSigil";
 const SEQUENCES = {
   roast: {
     steps: ["Assembling panel", "Analysing market", "Checking feasibility", "Searching for flaws", "Preparing roast"],
+    // Shown while waiting on a slow model. Each fits two lines of the display type at any width.
     stalling: [
-      "Cross-examining assumptions",
+      "Questioning assumptions",
       "Consulting spreadsheets",
       "Sharpening knives",
-      "Arguing amongst themselves",
-      "Drafting insults (constructive)",
+      "Arguing loudly",
+      "Drafting insults",
+      "Checking the maths",
+      "Finding competitors",
+      "Clearing throats",
     ],
     label: "Case file",
   },
   fix: {
-    steps: ["Extracting criticism", "Finding the wedge", "Fixing the business model", "Cutting the scope", "Re-pitching the panel"],
-    stalling: ["Stress-testing version 2", "Arguing with Sterling", "Rewriting slide nine", "Removing buzzwords"],
+    steps: ["Extracting criticism", "Finding the wedge", "Fixing the pricing", "Cutting the scope", "Re-pitching the panel"],
+    stalling: ["Stress-testing it", "Arguing with Sterling", "Rewriting slide nine", "Removing buzzwords", "Checking the maths"],
     label: "Rebuild",
   },
 } as const;
@@ -68,7 +72,9 @@ export function Analyzing({
 
   useEffect(() => {
     if (finished) {
-      const t = setTimeout(() => onCompleteRef.current(), reduced ? 200 : 900);
+      // A short beat to land "The panel is ready". If the model was slow and we were already
+      // stalling, don't make the audience wait any longer than that.
+      const t = setTimeout(() => onCompleteRef.current(), reduced ? 200 : stalling ? 450 : 900);
       return () => clearTimeout(t);
     }
     const t = setTimeout(() => {
@@ -76,7 +82,7 @@ export function Analyzing({
       sfx.play("tick");
     }, step >= base - 1 ? STALL_MS : STEP_MS);
     return () => clearTimeout(t);
-  }, [step, finished, base, reduced]);
+  }, [step, finished, base, reduced, stalling]);
 
   const progress = finished ? 100 : Math.min(92, Math.round(((step + 1) / (base + 0.6)) * 100) + Math.max(0, step - base) * 2);
   const words = useMemo(() => idea.slice(0, 320).split(/(\s+)/), [idea]);
