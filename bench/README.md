@@ -15,7 +15,7 @@ Results go to `bench/results/<timestamp>[-label]/` (git-ignored; commit a report
 ## Running it
 
 ```bash
-npm run bench -- --targets <spec,spec,…> [--ideas all|id,id] [--repeat N] [--no-fix] [--budget-usd 2] [--yes] [--label name]
+npm run bench -- --targets <spec,spec,…> [--ideas all|id,id] [--repeat N] [--no-fix] [--budget-usd 2] [--reserve-usd 0] [--yes] [--label name]
 ```
 
 Target specs:
@@ -33,8 +33,8 @@ Target specs:
 ### Cost safety
 
 - **Paid targets never run without `--yes`.** Without it you get the plan and a pessimistic cost estimate, and nothing is sent.
-- **A budget cap.** The run refuses to start if the pessimistic estimate exceeds `--budget-usd` (default $2), and stops early if *measured* spend crosses it.
-- **Limited concurrency and retries.** Jobs run one at a time by default (`--concurrency` up to 4, and only for API targets). Each job retries at most once, inside the pipeline, exactly as the app does.
+- **A budget guard (application-side, not an account cap).** The run refuses to start if the pessimistic estimate exceeds the usable budget (`--budget-usd` minus `--reserve-usd`, default $2 and $0). Before *each* paid journey it checks measured spend so far plus that journey's pessimistic estimate and stops rather than start one that could cross the budget. Failed journeys are counted from the tokens the API reported. A journey whose cost is unknown stops the run. This is an estimate from reported tokens and a price table; it is **not** a billing guarantee, so set a hard limit in the Anthropic console too.
+- **Limited concurrency and retries.** Jobs run one at a time; paid (API) journeys are always sequential so every budget check sees all earlier spend. Each job retries at most once, inside the pipeline, exactly as the app does.
 
 A full Claude run (10 ideas × Haiku, Sonnet and Opus, with FIX) is expected to cost about $1–2. Its pessimistic pre-run estimate is ~$3.20, so pass `--budget-usd 4`. A Haiku-only run costs a few cents.
 

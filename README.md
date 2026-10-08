@@ -50,7 +50,7 @@ All configuration is server-side, and every variable is documented in `.env.exam
 
 ## Benchmarking models
 
-`npm run bench` runs identical pitches through any set of models and writes a report covering reliability, time to first speech, how the timings would feel in the UI, tokens, estimated cost and text heuristics. It also writes a **blinded review page** for scoring quality without knowing which model wrote what. Paid targets need `--yes` and respect a budget cap. See [bench/README.md](bench/README.md).
+`npm run bench` runs identical pitches through any set of models and writes a report covering reliability, time to first speech, how the timings would feel in the UI, tokens, estimated cost and text heuristics. It also writes a **blinded review page** for scoring quality without knowing which model wrote what. Paid targets need `--yes` and respect an application-side budget guard (not an account-level cap). See [bench/README.md](bench/README.md).
 
 Browser-based (WebGPU) Qwen was assessed and isn't recommended for V1. See [docs/browser-inference.md](docs/browser-inference.md).
 

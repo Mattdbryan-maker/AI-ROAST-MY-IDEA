@@ -79,6 +79,8 @@ function parseArgs(argv: string[]) {
     repeat: Math.max(1, Number(get("repeat") ?? 1)),
     fix: !has("no-fix"),
     budgetUsd: Number(get("budget-usd") ?? 2),
+    /** Held back from the budget for something else (e.g. a live smoke test). */
+    reserveUsd: Number(get("reserve-usd") ?? 0),
     yes: has("yes"),
     concurrency: Math.min(4, Math.max(1, Number(get("concurrency") ?? 1))),
     out: get("out"),
@@ -187,15 +189,20 @@ async function main() {
     const price = t.provider === "anthropic" && !ANTHROPIC_PRICES[t.model] ? " (no price on file: cost will show as unknown)" : "";
     console.log(`  ${t.spec.padEnd(48)} ${args.ideas.length * args.repeat} journeys  ≤ $${per.toFixed(4)} each (pessimistic estimate)${price}`);
   }
-  console.log(`  Total ${jobs.length} journeys, pessimistic paid estimate ≤ $${estimate.toFixed(4)}, budget $${args.budgetUsd.toFixed(2)}\n`);
+  const usable = args.budgetUsd - args.reserveUsd;
+  console.log(
+    `  Total ${jobs.length} journeys, pessimistic paid estimate ≤ $${estimate.toFixed(4)}, budget $${args.budgetUsd.toFixed(2)}${args.reserveUsd ? ` ($${args.reserveUsd.toFixed(2)} reserved, $${usable.toFixed(2)} usable)` : ""}`,
+  );
+  console.log("  Budget control is application-side: estimated prices × token counts the API reports. It stops BEFORE starting a journey that could exceed the usable budget,");
+  console.log("  but it is not an account-level spending cap. Set a hard limit in the Anthropic console if you need a guarantee.\n");
 
   const paid = targets.some((t) => t.paid);
   if (paid && !args.yes) {
     console.log("Dry run: paid targets need --yes to run. Nothing was sent.");
     return;
   }
-  if (estimate > args.budgetUsd) {
-    console.error(`Estimated cost exceeds --budget-usd ${args.budgetUsd}. Raise the budget or run fewer ideas/targets.`);
+  if (estimate > usable) {
+    console.error(`Estimated cost exceeds the usable budget ($${usable.toFixed(2)}). Raise --budget-usd or run fewer ideas/targets.`);
     process.exitCode = 1;
     return;
   }
@@ -218,6 +225,13 @@ async function main() {
   let stop = false;
 
   const execute = async (job: (typeof jobs)[number]) => {
+    // Never START a paid journey that could take spend past the usable budget. The next journey is reserved
+    // at the pessimistic estimate, which is several times the measured usage and so also covers one retry.
+    const next = estimateJourneyUsd(job.target, args.fix);
+    if (!stop && job.target.paid && spent + next > usable) {
+      stop = true;
+      run.notes.push(`Stopped before starting a journey: measured spend $${spent.toFixed(4)} + pessimistic next-journey estimate $${next.toFixed(4)} would exceed the usable budget $${usable.toFixed(2)}.`);
+    }
     if (stop) {
       run.skipped++;
       return;
@@ -225,17 +239,24 @@ async function main() {
     process.stdout.write(`  ${job.target.spec} · ${job.idea.id} #${job.repeat} … `);
     const record = await runOne(job.target, job.idea, job.repeat, args.fix);
     run.records.push(record);
+    // An unknown cost (no price on file, or no usage reported) can't be counted, so stop rather than guess.
+    if (job.target.paid && record.costUsd.journey === null) {
+      stop = true;
+      run.notes.push("Stopped: a paid journey's cost was unknown (no price on file or no usage reported), so spend can no longer be tracked.");
+    }
     spent += record.costUsd.journey ?? 0;
     const status = record.ok ? "ok" : `FAILED (${record.failedAt}: ${record.errorMessage})`;
     console.log(`${status} · first speech ${record.timings.firstSpeechMs ?? "–"}ms · roast ${record.timings.roastDoneMs ?? "–"}ms · $${(record.costUsd.journey ?? 0).toFixed(4)}`);
-    if (spent > args.budgetUsd) {
+    if (spent > usable) {
       stop = true;
-      run.notes.push(`Stopped early: measured spend $${spent.toFixed(4)} exceeded the $${args.budgetUsd} budget.`);
+      run.notes.push(`Stopped early: measured spend $${spent.toFixed(4)} exceeded the usable budget $${usable.toFixed(2)}.`);
     }
   };
 
   for (const job of local) await execute(job);
-  for (let i = 0; i < remote.length; i += args.concurrency) await Promise.all(remote.slice(i, i + args.concurrency).map(execute));
+  // Paid journeys are always sequential so each budget check sees every earlier journey's measured spend.
+  for (const job of remote) await execute(job);
+  if (remote.length) run.notes.push(`Measured spend including failed journeys: $${spent.toFixed(4)} of $${usable.toFixed(2)} usable (an estimate from reported tokens, not an account-level figure).`);
 
   // Runtime details (e.g. Ollama model size and memory) after the model has been loaded.
   for (const t of targets) {
