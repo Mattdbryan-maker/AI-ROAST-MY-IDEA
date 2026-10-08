@@ -261,7 +261,7 @@ function ErrorView({ message, onRetry, onHome }: { message: string; onRetry: () 
 function Footer() {
   return (
     <footer className="relative z-10 mx-auto w-full max-w-7xl px-4 pb-8 pt-4 text-center font-mono text-[10px] uppercase tracking-[0.25em] text-dim sm:px-8">
-      For entertainment and honest feedback. The panel is harsh on ideas, never on people.
+      For entertainment and honest feedback, not professional advice. The panel is harsh on ideas, never on people.
     </footer>
   );
 }

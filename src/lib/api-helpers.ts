@@ -41,11 +41,25 @@ const limiter = createRateLimiter({
   windowMs: 10 * 60 * 1000,
 });
 
+/**
+ * Optional ceiling on ALL AI requests per day for this instance, regardless of who sends them.
+ * Per-IP limits don't bound spend (clients can rotate IPs or spoof forwarding headers); this does,
+ * per instance. Unset or 0 = off. On several instances, divide it between them.
+ */
+const dailyLimit = Number(process.env.DAILY_AI_REQUEST_LIMIT ?? 0);
+const dailyLimiter = dailyLimit > 0 ? createRateLimiter({ limit: dailyLimit, windowMs: 24 * 60 * 60 * 1000 }) : null;
+
 /** Rate limit → parse → validate. Returns the input, or the error response to send. */
 export async function parseAiRequest<S extends z.ZodType>(
   request: Request,
   schema: S,
 ): Promise<{ ok: true; data: z.infer<S> } | { ok: false; response: Response }> {
+  if (dailyLimiter && !dailyLimiter("all").ok) {
+    return {
+      ok: false,
+      response: errorResponse("rate_limited", "The panel has done its quota for today. Come back tomorrow.", { "Retry-After": "3600" }),
+    };
+  }
   const rl = limiter(clientKey(request));
   if (!rl.ok) {
     return {
