@@ -1,6 +1,7 @@
 import { parsePartialJson } from "../partial-json";
 import type { RoastStreamEvent } from "../stream-events";
 import { RoastSchema, type DebateLine, type PersonaId, type Roast } from "../types";
+import { LIMITS } from "../types";
 import { cleanText, normalizeDebate, normalizeRoast, normalizeTake, personaId } from "./normalize";
 import { InvalidResponseError, type RoastChunk, type RoastProvider } from "./provider";
 
@@ -34,7 +35,7 @@ export class RoastStreamAssembler {
 
     if (!this.metaSent && typeof doc.title === "string" && typeof doc.summary === "string" && closed("title") && closed("summary")) {
       this.metaSent = true;
-      events.push({ type: "meta", title: cleanText(doc.title, 64), summary: cleanText(doc.summary, 240) });
+      events.push({ type: "meta", title: cleanText(doc.title, Number.MAX_SAFE_INTEGER), summary: cleanText(doc.summary, Number.MAX_SAFE_INTEGER) });
     }
 
     const takes = Array.isArray(doc.takes) ? doc.takes : [];
@@ -62,9 +63,9 @@ export class RoastStreamAssembler {
         type: "progress",
         index,
         persona,
-        headline: liveText(raw.headline, 180),
+        headline: liveText(raw.headline, LIMITS.headline),
         headlineDone: typeof raw.headline === "string" && closed(`takes.${index}.headline`),
-        points: points.slice(0, 3).map((p) => liveText(p, 320)),
+        points: points.slice(0, 3).map((p) => liveText(p, LIMITS.point)),
         pointsDone: Math.min(3, pointsOpen ? points.filter((_, i) => closed(`takes.${index}.points.${i}`)).length : points.length),
       };
       const key = JSON.stringify(progress);

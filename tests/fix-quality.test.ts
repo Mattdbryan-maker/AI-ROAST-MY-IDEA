@@ -169,10 +169,10 @@ describe("prompt contract", () => {
     expect(ROAST_SYSTEM_PROMPT).toContain('must be exactly one of "investor", "engineer", "marketer" or "customer"');
     expect(ROAST_SYSTEM_PROMPT).toContain("Arithmetic must be exactly right");
     expect(ROAST_SYSTEM_PROMPT).toContain("Never refer to your own persona by name");
-    expect(FIX_SYSTEM_PROMPT).toContain("never more than +25");
+    expect(FIX_SYSTEM_PROMPT).toContain("never more than +20");
     expect(FIX_SYSTEM_PROMPT).toContain("Finish every step; never trail off");
     expect(FIX_SYSTEM_PROMPT).toContain("what each change costs");
-    expect(PROMPT_VERSION).toBe("2026-10-08.4");
+    expect(PROMPT_VERSION).toBe("2026-10-08.5");
   });
 });
 

@@ -1,5 +1,8 @@
 import type { FixResult, Roast } from "../src/lib/types";
 import { PERSONAS } from "../src/lib/personas";
+import { arithmeticErrors } from "../src/lib/ai/checks";
+
+export { arithmeticErrors };
 
 /**
  * Cheap, deterministic text checks. They flag symptoms (generic takes, debate
@@ -24,37 +27,6 @@ const jaccard = (a: Set<string>, b: Set<string>) => {
   const union = new Set([...a, ...b]).size;
   return union ? inter / union : 0;
 };
-
-/** Parses "£1,200", "50k", "$3m", "12" to a number; null when it isn't one. */
-function parseAmount(raw: string): number | null {
-  const m = raw.replace(/[£$€,\s]/g, "").match(/^(\d+(?:\.\d+)?)(k|m|bn)?$/i);
-  if (!m) return null;
-  const mult = { k: 1e3, m: 1e6, bn: 1e9 }[(m[2] ?? "").toLowerCase() as "k" | "m" | "bn"] ?? 1;
-  return Number(m[1]) * mult;
-}
-
-const AMOUNT = String.raw`[£$€]?\d[\d,]*(?:\.\d+)?\s?(?:k|m|bn)?`;
-const EQUATION = new RegExp(String.raw`(${AMOUNT})\s*([×x*/÷+−-])\s*(${AMOUNT})\s*=\s*(${AMOUNT})`, "gi");
-
-/**
- * Explicit equations in the text ("£79 × 12 = £950") whose result is wrong
- * (beyond 1% rounding). Only equations written out with an operator and "=" are
- * checked, so prose arithmetic is not covered.
- */
-export function arithmeticErrors(text: string): string[] {
-  const bad: string[] = [];
-  for (const m of text.matchAll(EQUATION)) {
-    const [whole, a, op, b, c] = m;
-    const x = parseAmount(a);
-    const y = parseAmount(b);
-    const z = parseAmount(c);
-    if (x === null || y === null || z === null) continue;
-    const want = { "×": x * y, x: x * y, "*": x * y, "/": y ? x / y : NaN, "÷": y ? x / y : NaN, "+": x + y, "−": x - y, "-": x - y }[op.toLowerCase()];
-    if (want === undefined || Number.isNaN(want)) continue;
-    if (Math.abs(want - z) > Math.max(0.01 * Math.abs(want), 0.005)) bad.push(whole.trim());
-  }
-  return bad;
-}
 
 /** Text that stops without closing punctuation: the usual look of a response cut off mid-sentence. */
 export function isUnterminated(text: string): boolean {

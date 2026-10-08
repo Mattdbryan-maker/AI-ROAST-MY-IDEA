@@ -2,6 +2,7 @@ import "server-only";
 import type { z } from "zod";
 import type { ApiError, ApiErrorCode } from "./types";
 import { ProviderError } from "./ai";
+import { acquireSlot, loadGuards, spentTodayUsd } from "./guards";
 import { clientKey, createRateLimiter } from "./rate-limit";
 
 const STATUS: Record<ApiErrorCode, number> = {
@@ -23,7 +24,9 @@ export function toPublicError(err: unknown): ApiError["error"] {
   if (err instanceof ProviderError) {
     console.error(`[ai] ${err.code}: ${err.message}`);
     const message =
-      err.code === "refused"
+      err.message.startsWith("Server misconfigured")
+        ? "The panel isn't set up on this server yet."
+        : err.code === "refused"
         ? "The panel refused to judge this one. Try a different idea."
         : err.code === "invalid_response"
           ? "The panel got into a fistfight and returned nonsense. Please try again."
@@ -36,30 +39,21 @@ export function toPublicError(err: unknown): ApiError["error"] {
   return { code: "internal", message: "Something broke backstage. Please try again." };
 }
 
-const limiter = createRateLimiter({
-  limit: Number(process.env.RATE_LIMIT_PER_10_MIN ?? 20),
-  windowMs: 10 * 60 * 1000,
-});
+const guards = loadGuards();
+const limiter = createRateLimiter({ limit: guards.perClientPer10Min, windowMs: 10 * 60 * 1000 });
+const dailyLimiter = guards.dailyRequests > 0 ? createRateLimiter({ limit: guards.dailyRequests, windowMs: 24 * 60 * 60 * 1000 }) : null;
+
+export type ParsedAiRequest<S extends z.ZodType> = { ok: true; data: z.infer<S>; release: () => void } | { ok: false; response: Response };
 
 /**
- * Optional ceiling on ALL AI requests per day for this instance, regardless of who sends them.
- * Per-IP limits don't bound spend (clients can rotate IPs or spoof forwarding headers); this does,
- * per instance. Unset or 0 = off. On several instances, divide it between them.
+ * Per-client rate limit → parse → validate → instance-wide caps → concurrency slot.
+ *
+ * Order matters: malformed requests are rejected before they can use up the
+ * daily allowance, and the allowance is checked before a slot is taken.
+ * On success the caller owns a slot and MUST call \`release\` when the work ends.
+ * Every cap here is per server instance (see guards.ts): not a global limit.
  */
-const dailyLimit = Number(process.env.DAILY_AI_REQUEST_LIMIT ?? 0);
-const dailyLimiter = dailyLimit > 0 ? createRateLimiter({ limit: dailyLimit, windowMs: 24 * 60 * 60 * 1000 }) : null;
-
-/** Rate limit → parse → validate. Returns the input, or the error response to send. */
-export async function parseAiRequest<S extends z.ZodType>(
-  request: Request,
-  schema: S,
-): Promise<{ ok: true; data: z.infer<S> } | { ok: false; response: Response }> {
-  if (dailyLimiter && !dailyLimiter("all").ok) {
-    return {
-      ok: false,
-      response: errorResponse("rate_limited", "The panel has done its quota for today. Come back tomorrow.", { "Retry-After": "3600" }),
-    };
-  }
+export async function parseAiRequest<S extends z.ZodType>(request: Request, schema: S): Promise<ParsedAiRequest<S>> {
   const rl = limiter(clientKey(request));
   if (!rl.ok) {
     return {
@@ -72,7 +66,9 @@ export async function parseAiRequest<S extends z.ZodType>(
 
   let json: unknown;
   try {
-    json = await request.json();
+    const body = await request.text();
+    if (body.length > guards.maxBodyChars) return { ok: false, response: errorResponse("invalid_input", "That request is too large.") };
+    json = JSON.parse(body);
   } catch {
     return { ok: false, response: errorResponse("invalid_input", "Request body must be JSON.") };
   }
@@ -80,7 +76,26 @@ export async function parseAiRequest<S extends z.ZodType>(
   if (!parsed.success) {
     return { ok: false, response: errorResponse("invalid_input", parsed.error.issues[0]?.message ?? "Invalid request.") };
   }
-  return { ok: true, data: parsed.data };
+
+  if (dailyLimiter && !dailyLimiter("all").ok) {
+    console.warn(JSON.stringify({ evt: "daily_request_cap_reached", limit: guards.dailyRequests }));
+    return {
+      ok: false,
+      response: errorResponse("rate_limited", "The panel has done its quota for today. Come back tomorrow.", { "Retry-After": "3600" }),
+    };
+  }
+  if (guards.dailySpendUsd > 0 && spentTodayUsd() >= guards.dailySpendUsd) {
+    console.warn(JSON.stringify({ evt: "daily_spend_cap_reached", limitUsd: guards.dailySpendUsd, estUsdToday: Number(spentTodayUsd().toFixed(4)) }));
+    return {
+      ok: false,
+      response: errorResponse("rate_limited", "The panel has done its quota for today. Come back tomorrow.", { "Retry-After": "3600" }),
+    };
+  }
+  const release = acquireSlot(guards.maxConcurrent);
+  if (!release) {
+    return { ok: false, response: errorResponse("rate_limited", "The panel is packed right now. Try again in a few seconds.", { "Retry-After": "10" }) };
+  }
+  return { ok: true, data: parsed.data, release };
 }
 
 /** Shared pipeline for the JSON (non-streaming) AI routes. */
@@ -97,6 +112,17 @@ export async function handleAiRequest<S extends z.ZodType, R>(
   } catch (err) {
     const error = toPublicError(err);
     return errorResponse(error.code, error.message);
+  } finally {
+    input.release();
+  }
+}
+
+/** Yields the events and releases the generation slot when the stream finishes, fails or is cancelled. */
+export async function* releasing<E>(events: AsyncIterable<E>, release: () => void): AsyncGenerator<E> {
+  try {
+    yield* events;
+  } finally {
+    release();
   }
 }
 

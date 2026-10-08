@@ -2,7 +2,7 @@
 
 What it costs to run a roast, which models are candidates, and what evidence is still needed before choosing one.
 
-**Status:** no live model has been benchmarked yet. The build environment had no Anthropic API key and couldn't download local models. Everything below labelled *estimate* comes from measured prompt sizes and published prices. The benchmark framework (`bench/`) is built to replace these estimates with measurements: see [Evidence still needed](#evidence-still-needed).
+**Status:** Phase 3B benchmarked Qwen 3.5 4B and Haiku 5.5 on ten ideas (see phase-3b and phase-4 reports); Haiku 5.5 is now the default model. The tables below are the original pre-benchmark estimates.
 
 ## What one journey consumes
 

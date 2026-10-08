@@ -39,6 +39,8 @@
   }
 
   body {
+    /* A long unbroken token (a URL in a pitch or a step) wraps instead of widening the page on a phone. */
+    overflow-wrap: anywhere;
     background: var(--color-void);
     color: var(--color-bone);
     font-family: var(--font-sans);

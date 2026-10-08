@@ -13,7 +13,12 @@ import { InvalidResponseError, ProviderError, type RoastChunk } from "./provider
  * and server-side refusal fallbacks on the models that support them.
  */
 
-export const DEFAULT_ANTHROPIC_MODEL = "claude-opus-5-5";
+/**
+ * The release-candidate model. It is also the default on purpose: forgetting to
+ * set ANTHROPIC_MODEL must never silently select a model ~40x the price.
+ * Stronger models are an explicit opt-in (ANTHROPIC_MODEL / ANTHROPIC_FIX_MODEL).
+ */
+export const DEFAULT_ANTHROPIC_MODEL = "claude-haiku-5-5";
 
 type Effort = "low" | "medium" | "high" | "xhigh" | "max";
 const EFFORTS: Effort[] = ["low", "medium", "high", "xhigh", "max"];

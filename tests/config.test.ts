@@ -10,7 +10,7 @@ describe("loadAiConfig", () => {
   });
 
   it("picks Anthropic automatically when a key is present", () => {
-    expect(loadAiConfig({ ANTHROPIC_API_KEY: "k" })).toMatchObject({ provider: "anthropic", model: "claude-opus-5-5", fixModel: "claude-opus-5-5", debateMode: "single" });
+    expect(loadAiConfig({ ANTHROPIC_API_KEY: "k" })).toMatchObject({ provider: "anthropic", model: "claude-haiku-5-5", fixModel: "claude-haiku-5-5", debateMode: "single" });
   });
 
   it("supports a separate FIX MY IDEA model", () => {
@@ -62,7 +62,7 @@ describe("createProvider", () => {
 describe("publicStatus", () => {
   it("never exposes keys or hosts", () => {
     const status = publicStatus({ ANTHROPIC_API_KEY: "sk-ant-secret", AI_PROVIDER: "anthropic" });
-    expect(status).toEqual({ mode: "ai", provider: "anthropic", model: "claude-opus-5-5" });
+    expect(status).toEqual({ mode: "ai", provider: "anthropic", model: "claude-haiku-5-5" });
     expect(JSON.stringify(publicStatus({ AI_PROVIDER: "ollama", OLLAMA_HOST: "secret-box:11434" }))).not.toContain("secret-box");
   });
 

@@ -22,6 +22,6 @@ export default defineConfig({
     url: `http://localhost:${PORT}/api/status`,
     reuseExistingServer: !process.env.CI,
     timeout: 240_000,
-    env: { AI_PROVIDER: "demo" },
+    env: { AI_PROVIDER: "demo", RATE_LIMIT_PER_10_MIN: "1000" },
   },
 });

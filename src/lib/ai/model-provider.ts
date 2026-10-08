@@ -45,8 +45,10 @@ export interface ModelRoastProviderOptions {
   onUsage?: (record: UsageRecord) => void;
 }
 
-const ROAST_MAX_TOKENS = 16000;
-const FIX_MAX_TOKENS = 16000;
+// Output ceilings, including any hidden reasoning. A roast is ~1,500-2,000 tokens and a FIX ~1,000, so these
+// leave generous room while bounding what one runaway generation can cost (Haiku: under $0.005 at 8,000).
+const ROAST_MAX_TOKENS = 8000;
+const FIX_MAX_TOKENS = 8000;
 const DEBATE_TURN_MAX_TOKENS = 2000;
 
 export class ModelRoastProvider implements RoastProvider {
@@ -72,14 +74,14 @@ export class ModelRoastProvider implements RoastProvider {
   }
 
   async roast(idea: string, signal?: AbortSignal): Promise<Roast> {
-    return withRetry(async () => {
+    return withRetry(async (note) => {
       if (this.debateMode === "multi") {
         let text = "";
         for await (const chunk of this.roastStream(idea, signal)) text = chunk.type === "restart" ? "" : text + chunk.text;
         return normalizeRoast(extractJson(text), "ai");
       }
       const raw = await this.client.complete(
-        this.request("roast", { system: ROAST_SYSTEM_PROMPT, user: buildRoastUserMessage(idea), schema: ModelRoastSchema, maxTokens: ROAST_MAX_TOKENS, signal }),
+        this.request("roast", { system: ROAST_SYSTEM_PROMPT, user: buildRoastUserMessage(idea) + (note ?? ""), schema: ModelRoastSchema, maxTokens: ROAST_MAX_TOKENS, signal }),
       );
       return normalizeRoast(extractJson(raw), "ai");
     });
@@ -93,11 +95,11 @@ export class ModelRoastProvider implements RoastProvider {
   }
 
   async fix(idea: string, roast: Roast, signal?: AbortSignal): Promise<FixResult> {
-    return withRetry(async () => {
+    return withRetry(async (note) => {
       const raw = await this.fixClient.complete(
-        this.request("fix", { system: FIX_SYSTEM_PROMPT, user: buildFixUserMessage(idea, roast), schema: ModelFixSchema, maxTokens: FIX_MAX_TOKENS, signal }, this.fixClient),
+        this.request("fix", { system: FIX_SYSTEM_PROMPT, user: buildFixUserMessage(idea, roast) + (note ?? ""), schema: ModelFixSchema, maxTokens: FIX_MAX_TOKENS, signal }, this.fixClient),
       );
-      return capProjectedScores(normalizeFix(extractJson(raw), "ai"), roast);
+      return capProjectedScores(normalizeFix(extractJson(raw), "ai", { idea }), roast);
     });
   }
 
@@ -165,13 +167,20 @@ export class ModelRoastProvider implements RoastProvider {
   }
 }
 
-async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+/**
+ * Runs a generation, and if the response is unusable runs it once more, telling
+ * the model what was wrong with the first attempt. Only our own validation
+ * messages go into the note (never provider output), so it can't be hijacked.
+ */
+async function withRetry<T>(fn: (retryNote?: string) => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (err) {
     if (err instanceof InvalidResponseError) {
       console.warn(`[ai] invalid response, retrying once: ${err.message}`);
-      return fn();
+      return fn(`
+
+Your previous attempt was rejected: ${err.message}. Write the whole response again and fix that problem.`);
     }
     throw err;
   }

@@ -23,7 +23,7 @@ function fakeClient(responses: { text?: string; stop_reason?: string }[]) {
 describe("AnthropicProvider", () => {
   it("sends a structured-output request and returns a validated roast", async () => {
     const { client, create } = fakeClient([{ text: modelJson() }]);
-    const provider = new AnthropicProvider({ apiKey: "test", client });
+    const provider = new AnthropicProvider({ apiKey: "test", client, model: "claude-opus-5-5" });
     const roast = await provider.roast("A subscription box of houseplants.");
 
     expect(() => RoastSchema.parse(roast)).not.toThrow();
@@ -81,7 +81,7 @@ describe("AnthropicProvider.roastStream", () => {
       text('{"title":"ok"}'),
     ]);
     const chunks = [];
-    for await (const c of new AnthropicProvider({ apiKey: "t", client }).roastStream("An idea to stream.")) chunks.push(c);
+    for await (const c of new AnthropicProvider({ apiKey: "t", client, model: "claude-opus-5-5" }).roastStream("An idea to stream.")) chunks.push(c);
     expect(chunks).toEqual([
       { type: "text", text: '{"title":' },
       { type: "restart" },

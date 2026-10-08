@@ -1,5 +1,6 @@
 import "server-only";
 import { AnthropicClient } from "./anthropic";
+import { recordUsage } from "../guards";
 import { ConfigError, loadAiConfig, type AiConfig } from "./config";
 import { DemoProvider } from "./demo/engine";
 import { ModelRoastProvider } from "./model-provider";
@@ -21,12 +22,12 @@ export function createProvider(config: AiConfig): RoastProvider {
     case "anthropic": {
       const client = new AnthropicClient(config);
       const fixClient = config.fixModel !== config.model ? new AnthropicClient({ ...config, model: config.fixModel }) : undefined;
-      return new ModelRoastProvider(client, { debateMode: config.debateMode, fixClient });
+      return new ModelRoastProvider(client, { debateMode: config.debateMode, fixClient, onUsage: recordUsage });
     }
     case "ollama": {
       const client = new OllamaClient(config);
       const fixClient = config.fixModel !== config.model ? new OllamaClient({ ...config, model: config.fixModel }) : undefined;
-      return new ModelRoastProvider(client, { debateMode: config.debateMode, fixClient });
+      return new ModelRoastProvider(client, { debateMode: config.debateMode, fixClient, onUsage: recordUsage });
     }
   }
 }

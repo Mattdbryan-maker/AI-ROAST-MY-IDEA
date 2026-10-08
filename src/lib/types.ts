@@ -24,34 +24,71 @@ export const IdeaSchema = z
   .min(IDEA_MIN_LENGTH, `Give the panel a bit more to work with (at least ${IDEA_MIN_LENGTH} characters).`)
   .max(IDEA_MAX_LENGTH, `Keep the pitch under ${IDEA_MAX_LENGTH} characters — investors stop reading anyway.`);
 
-const text = (max: number) => z.string().trim().min(1).max(max);
+/** Length is counted in characters (code points), the same way the normaliser counts, so an emoji is one. */
+const text = (max: number) =>
+  z
+    .string()
+    .trim()
+    .min(1)
+    .refine((s) => [...s].length <= max, `Must be at most ${max} characters`);
+
+/**
+ * The one place text limits live. The schemas below, the normaliser, the live
+ * stream and the prompts' length guidance all read from here, so they cannot
+ * drift apart. Each limit sits well above what the prompts ask the model for
+ * (see ai/prompts.ts), because the normaliser never cuts text to fit: an
+ * over-limit string is rejected (and the request retried) or, in the roast,
+ * loses whole trailing sentences. See ai/normalize.ts.
+ */
+export const LIMITS = {
+  title: 64,
+  summary: 240,
+  headline: 180,
+  point: 320,
+  strength: 240,
+  weakness: 240,
+  debateLine: 240,
+  listItem: 240,
+  risk: 320,
+  opportunity: 320,
+  closingLine: 200,
+  fixArea: 48,
+  fixTagline: 200,
+  fixBefore: 320,
+  fixAfter: 480,
+  fixWhy: 420,
+  /** A step ends with its pass/fail threshold, so it is never cut. */
+  fixStep: 420,
+  /** The close of the pitch carries its qualifications, so it is never cut. */
+  fixPitch: 1400,
+} as const;
 
 export const PersonaTakeSchema = z.object({
   persona: PersonaIdSchema,
   score: z.number().int().min(0).max(100),
-  headline: text(180),
-  points: z.array(text(320)).min(2).max(3),
-  strength: text(240),
-  weakness: text(240),
+  headline: text(LIMITS.headline),
+  points: z.array(text(LIMITS.point)).min(2).max(3),
+  strength: text(LIMITS.strength),
+  weakness: text(LIMITS.weakness),
 });
 export type PersonaTake = z.infer<typeof PersonaTakeSchema>;
 
 export const DebateLineSchema = z.object({
   speaker: PersonaIdSchema,
-  line: text(240),
+  line: text(LIMITS.debateLine),
 });
 export type DebateLine = z.infer<typeof DebateLineSchema>;
 
 export const RoastSchema = z.object({
-  title: text(64),
-  summary: text(240),
+  title: text(LIMITS.title),
+  summary: text(LIMITS.summary),
   takes: z.array(PersonaTakeSchema).length(4),
   debate: z.array(DebateLineSchema).min(3).max(6),
-  strengths: z.array(text(240)).min(2).max(3),
-  weaknesses: z.array(text(240)).min(2).max(3),
-  biggestRisk: text(320),
-  biggestOpportunity: text(320),
-  closingLine: text(200),
+  strengths: z.array(text(LIMITS.listItem)).min(2).max(3),
+  weaknesses: z.array(text(LIMITS.listItem)).min(2).max(3),
+  biggestRisk: text(LIMITS.risk),
+  biggestOpportunity: text(LIMITS.opportunity),
+  closingLine: text(LIMITS.closingLine),
   overall: z.number().int().min(0).max(100),
   verdict: VerdictSchema,
   mode: z.enum(["ai", "demo"]),
@@ -59,10 +96,10 @@ export const RoastSchema = z.object({
 export type Roast = z.infer<typeof RoastSchema>;
 
 export const FixChangeSchema = z.object({
-  area: text(48),
-  before: text(240),
-  after: text(280),
-  why: text(320),
+  area: text(LIMITS.fixArea),
+  before: text(LIMITS.fixBefore),
+  after: text(LIMITS.fixAfter),
+  why: text(LIMITS.fixWhy),
   persona: PersonaIdSchema,
 });
 export type FixChange = z.infer<typeof FixChangeSchema>;
@@ -75,17 +112,12 @@ export const PersonaScoresSchema = z.object({
 });
 export type PersonaScores = z.infer<typeof PersonaScoresSchema>;
 
-/**
- * FIX text where cutting a string loses its meaning (a step's pass/fail
- * threshold, the end of the pitch). The prompt asks for much less than this;
- * the normaliser rejects anything longer instead of truncating it.
- */
-export const FIX_STEP_MAX = 420;
-export const FIX_PITCH_MAX = 1400;
+export const FIX_STEP_MAX = LIMITS.fixStep;
+export const FIX_PITCH_MAX = LIMITS.fixPitch;
 
 export const FixResultSchema = z.object({
-  title: text(64),
-  tagline: text(140),
+  title: text(LIMITS.title),
+  tagline: text(LIMITS.fixTagline),
   pitch: text(FIX_PITCH_MAX),
   changes: z.array(FixChangeSchema).min(3).max(5),
   firstSteps: z.array(text(FIX_STEP_MAX)).min(3).max(3),
