@@ -1,4 +1,4 @@
-import { PERSONA_IDS, type DebateLine, type FixChange, type FixResult, type PersonaId, type PersonaTake, type Roast } from "../types";
+import { FIX_PITCH_MAX, FIX_STEP_MAX, PERSONA_IDS, type DebateLine, type FixChange, type FixResult, type PersonaId, type PersonaTake, type Roast } from "../types";
 import { clampScore, overallScore, scoresFromTakes, verdictFor } from "../scoring";
 import { InvalidResponseError } from "./provider";
 
@@ -27,6 +27,18 @@ export function cleanText(value: unknown, max: number): string {
   return `${(lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).replace(/[\s,;:.–-]+$/, "")}…`;
 }
 
+/**
+ * Like cleanText, but never cuts. Text whose end carries the meaning (a step's
+ * pass/fail threshold, the close of a pitch) is rejected as an invalid response
+ * when it is over the limit, so the existing retry runs instead of the user
+ * seeing advice that stops mid-sentence.
+ */
+export function wholeText(value: unknown, max: number, what: string): string {
+  const s = cleanText(value, Number.MAX_SAFE_INTEGER);
+  if ([...s].length > max) throw new InvalidResponseError(`Model response ${what} was too long (${[...s].length} > ${max} characters)`);
+  return s;
+}
+
 function textList(value: unknown, max: number, limit: number): string[] {
   if (!Array.isArray(value)) return [];
   const seen = new Set<string>();
@@ -40,6 +52,16 @@ function textList(value: unknown, max: number, limit: number): string[] {
     if (out.length === limit) break;
   }
   return out;
+}
+
+function dedupe(items: string[]): string[] {
+  const seen = new Set<string>();
+  return items.filter((t) => {
+    const key = t.toLowerCase();
+    if (!t || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 export function personaId(value: unknown): PersonaId | null {
@@ -96,10 +118,13 @@ export function normalizeTake(t: unknown): PersonaTake | null {
   return { persona: id, score: clampScore(t.score), headline, points, strength, weakness };
 }
 
+/** A leading uppercase "STERLING:" / "**HYPE** -" label the model wrote inside the dialogue. The speaker field already says who is talking. */
+const SPEAKER_LABEL = /^\s*(?:\*\*)?(?:STERLING|KERNEL|HYPE|WALLET)(?:\*\*)?\s*[:\-–—]\s+/;
+
 export function normalizeDebate(value: unknown): DebateLine[] {
   return (Array.isArray(value) ? value : [])
     .filter(isObj)
-    .map((d) => ({ speaker: personaId(d.speaker), line: cleanText(d.line, 240) }))
+    .map((d) => ({ speaker: personaId(d.speaker), line: cleanText(typeof d.line === "string" ? d.line.replace(SPEAKER_LABEL, "") : d.line, 240) }))
     .filter((d): d is DebateLine => d.speaker !== null && d.line.length > 0)
     .slice(0, 6);
 }
@@ -158,7 +183,7 @@ export function normalizeFix(raw: unknown, mode: FixResult["mode"]): FixResult {
     .slice(0, 5);
   if (changes.length < 3) throw new InvalidResponseError("Fix response needs at least three changes");
 
-  const firstSteps = textList(raw.firstSteps, 240, 3);
+  const firstSteps = dedupe((Array.isArray(raw.firstSteps) ? raw.firstSteps : []).map((step) => wholeText(step, FIX_STEP_MAX, "first step"))).slice(0, 3);
   if (firstSteps.length < 3) throw new InvalidResponseError("Fix response needs three first steps");
 
   const ps = isObj(raw.projectedScores) ? raw.projectedScores : {};
@@ -173,7 +198,7 @@ export function normalizeFix(raw: unknown, mode: FixResult["mode"]): FixResult {
   return {
     title: require(cleanText(raw.title, 64), "title"),
     tagline: require(cleanText(raw.tagline, 140), "tagline"),
-    pitch: require(cleanText(raw.pitch, 1100), "pitch"),
+    pitch: require(wholeText(raw.pitch, FIX_PITCH_MAX, "pitch"), "pitch"),
     changes,
     firstSteps,
     projectedScores,
@@ -181,4 +206,24 @@ export function normalizeFix(raw: unknown, mode: FixResult["mode"]): FixResult {
     projectedVerdict: verdictFor(projectedOverall),
     mode,
   };
+}
+
+/** The most any persona's projected score may rise over their roast score. */
+export const MAX_PROJECTED_GAIN = 25;
+
+/**
+ * Keeps "after" scores believable: a fix can't lift one critic by more than
+ * MAX_PROJECTED_GAIN points. Small models routinely promise 40-50 point jumps.
+ * Overall score and verdict are recomputed from the capped scores.
+ */
+export function capProjectedScores(fix: FixResult, roast: Pick<Roast, "takes">): FixResult {
+  const before = scoresFromTakes(roast.takes);
+  const projectedScores = {
+    investor: Math.min(fix.projectedScores.investor, before.investor + MAX_PROJECTED_GAIN),
+    engineer: Math.min(fix.projectedScores.engineer, before.engineer + MAX_PROJECTED_GAIN),
+    marketer: Math.min(fix.projectedScores.marketer, before.marketer + MAX_PROJECTED_GAIN),
+    customer: Math.min(fix.projectedScores.customer, before.customer + MAX_PROJECTED_GAIN),
+  };
+  const projectedOverall = overallScore(projectedScores);
+  return { ...fix, projectedScores, projectedOverall, projectedVerdict: verdictFor(projectedOverall) };
 }

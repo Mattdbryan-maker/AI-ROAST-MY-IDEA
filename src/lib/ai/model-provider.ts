@@ -1,6 +1,6 @@
 import type { FixResult, PersonaId, Roast } from "../types";
 import type { LlmClient, LlmPurpose, LlmRequest, LlmUsage } from "./llm";
-import { extractJson, normalizeFix, normalizeRoast, normalizeTake } from "./normalize";
+import { capProjectedScores, extractJson, normalizeFix, normalizeRoast, normalizeTake } from "./normalize";
 import {
   DEBATE_TURN_SYSTEM_PROMPT,
   FIX_SYSTEM_PROMPT,
@@ -97,7 +97,7 @@ export class ModelRoastProvider implements RoastProvider {
       const raw = await this.fixClient.complete(
         this.request("fix", { system: FIX_SYSTEM_PROMPT, user: buildFixUserMessage(idea, roast), schema: ModelFixSchema, maxTokens: FIX_MAX_TOKENS, signal }, this.fixClient),
       );
-      return normalizeFix(extractJson(raw), "ai");
+      return capProjectedScores(normalizeFix(extractJson(raw), "ai"), roast);
     });
   }
 

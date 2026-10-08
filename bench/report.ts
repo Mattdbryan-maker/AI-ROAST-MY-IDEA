@@ -164,15 +164,15 @@ export function renderReport(run: BenchRun): string {
     "",
     "## Text heuristics (automated — symptoms, not quality)",
     "",
-    "Grounding: share of testimonies using a distinctive word from the pitch. Engagement: share of debate lines that answer the previous speaker. Possible invented figures: money/percentages not in the pitch and not framed as an assumption — check each by hand. Overlap: word overlap between the four voices (lower = more distinct).",
+    "Grounding: share of testimonies using a distinctive word from the pitch. Engagement: share of debate lines that answer the previous speaker. Possible invented figures: money/percentages not in the pitch and not framed as an assumption — check each by hand. Overlap: word overlap between the four voices (lower = more distinct). Truncated/Unterminated: text cut off mid-sentence, across the roast and the FIX. Arithmetic errors: written-out equations (a × b = c) that are wrong. Self-references: a persona naming themselves.",
     "",
-    "| Target | Grounding | Debate engagement | Debates with a concession | Possible invented figures (total) | Clichés (total) | Voice overlap | Truncated strings |",
-    "|---|---|---|---|---|---|---|---|",
+    "| Target | Grounding | Debate engagement | Debates with a concession | Possible invented figures (total) | Clichés (total) | Voice overlap | Truncated (…) | Unterminated | Arithmetic errors | Self-references |",
+    "|---|---|---|---|---|---|---|---|---|---|---|",
   );
   for (const [target, rs] of byTarget) {
     const h = defined(rs.map((r) => r.heuristics));
     push(
-      `| \`${target}\` | ${pct(mean(h.map((x) => x.pitchGrounding)))} | ${pct(mean(h.map((x) => x.debateEngagement)))} | ${h.filter((x) => x.debateHasConcession).length}/${h.length} | ${h.reduce((n, x) => n + x.possibleInventedFigures, 0)} | ${h.reduce((n, x) => n + x.clicheHits, 0)} | ${mean(h.map((x) => x.personaOverlap))?.toFixed(2) ?? "–"} | ${h.reduce((n, x) => n + x.truncatedStrings, 0)} |`,
+      `| \`${target}\` | ${pct(mean(h.map((x) => x.pitchGrounding)))} | ${pct(mean(h.map((x) => x.debateEngagement)))} | ${h.filter((x) => x.debateHasConcession).length}/${h.length} | ${h.reduce((n, x) => n + x.possibleInventedFigures, 0)} | ${h.reduce((n, x) => n + x.clicheHits, 0)} | ${mean(h.map((x) => x.personaOverlap))?.toFixed(2) ?? "–"} | ${h.reduce((n, x) => n + x.truncatedStrings, 0)} | ${h.reduce((n, x) => n + x.unterminatedStrings, 0)} | ${h.reduce((n, x) => n + x.arithmeticErrors, 0)} | ${h.reduce((n, x) => n + x.selfReferences, 0)} |`,
     );
   }
 

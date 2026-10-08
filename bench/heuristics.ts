@@ -12,7 +12,7 @@ const STOPWORDS = new Set(
   "about above after again against also because been before being below between both but could does doing down during each from further have having here into itself just more most other over same should some such than that their them then there these they this those through under until very what when where which while will with would your yours ours the and for are not you can our its was were has had who how all any few nor only own out per too off once why".split(" "),
 );
 
-const CLICHES = ["bold move", "i'm out", "shark tank", "solution looking for a problem", "game-changer", "game changer", "disrupt", "at the end of the day", "move the needle", "synergy", "leverage social media", "go viral"];
+const CLICHES = ["bold move", "i'm out", "shark tank", "solution looking for a problem", "game-changer", "game changer", "disrupt", "at the end of the day", "move the needle", "synergy", "leverage social media", "go viral", "uber for", "tinder for", "netflix for"];
 const HEDGES = /\b(if|say|assume|assuming|roughly|maybe|could|around|about|perhaps|guess|ballpark|suppose)\b|~/i;
 
 function words(text: string): string[] {
@@ -24,6 +24,42 @@ const jaccard = (a: Set<string>, b: Set<string>) => {
   const union = new Set([...a, ...b]).size;
   return union ? inter / union : 0;
 };
+
+/** Parses "£1,200", "50k", "$3m", "12" to a number; null when it isn't one. */
+function parseAmount(raw: string): number | null {
+  const m = raw.replace(/[£$€,\s]/g, "").match(/^(\d+(?:\.\d+)?)(k|m|bn)?$/i);
+  if (!m) return null;
+  const mult = { k: 1e3, m: 1e6, bn: 1e9 }[(m[2] ?? "").toLowerCase() as "k" | "m" | "bn"] ?? 1;
+  return Number(m[1]) * mult;
+}
+
+const AMOUNT = String.raw`[£$€]?\d[\d,]*(?:\.\d+)?\s?(?:k|m|bn)?`;
+const EQUATION = new RegExp(String.raw`(${AMOUNT})\s*([×x*/÷+−-])\s*(${AMOUNT})\s*=\s*(${AMOUNT})`, "gi");
+
+/**
+ * Explicit equations in the text ("£79 × 12 = £950") whose result is wrong
+ * (beyond 1% rounding). Only equations written out with an operator and "=" are
+ * checked, so prose arithmetic is not covered.
+ */
+export function arithmeticErrors(text: string): string[] {
+  const bad: string[] = [];
+  for (const m of text.matchAll(EQUATION)) {
+    const [whole, a, op, b, c] = m;
+    const x = parseAmount(a);
+    const y = parseAmount(b);
+    const z = parseAmount(c);
+    if (x === null || y === null || z === null) continue;
+    const want = { "×": x * y, x: x * y, "*": x * y, "/": y ? x / y : NaN, "÷": y ? x / y : NaN, "+": x + y, "−": x - y, "-": x - y }[op.toLowerCase()];
+    if (want === undefined || Number.isNaN(want)) continue;
+    if (Math.abs(want - z) > Math.max(0.01 * Math.abs(want), 0.005)) bad.push(whole.trim());
+  }
+  return bad;
+}
+
+/** Text that stops without closing punctuation: the usual look of a response cut off mid-sentence. */
+export function isUnterminated(text: string): boolean {
+  return !/[.!?…"'”’)\]]$/.test(text.trim());
+}
 
 export interface Heuristics {
   /** Share of testimonies that mention at least one distinctive word from the pitch. Higher = more grounded. */
@@ -38,8 +74,14 @@ export interface Heuristics {
   clicheHits: number;
   /** Mean word overlap between the four testimonies (0-1). Lower = more distinct voices. */
   personaOverlap: number;
-  /** Strings the normaliser had to cut short (the model ignored length guidance). */
+  /** Strings the normaliser had to cut short (end in an ellipsis), across the roast AND the FIX. */
   truncatedStrings: number;
+  /** Advice/dialogue strings that end without closing punctuation (likely cut off mid-sentence). */
+  unterminatedStrings: number;
+  /** Written-out equations (a × b = c) whose result is wrong. */
+  arithmeticErrors: number;
+  /** A persona naming themselves in their own testimony or debate line. */
+  selfReferences: number;
 }
 
 export function analyseRoast(pitch: string, roast: Roast, fix?: FixResult | null): Heuristics {
@@ -86,8 +128,26 @@ export function analyseRoast(pitch: string, roast: Roast, fix?: FixResult | null
   }
   const personaOverlap = pairs ? total / pairs : 0;
 
-  const strings = [...roast.takes.flatMap((t) => [t.headline, ...t.points, t.strength, t.weakness]), ...roast.debate.map((d) => d.line)];
-  const truncatedStrings = strings.filter((s) => s.endsWith("…")).length;
+  const strings = [
+    ...roast.takes.flatMap((t) => [t.headline, ...t.points, t.strength, t.weakness]),
+    ...roast.debate.map((d) => d.line),
+    ...roast.strengths,
+    ...roast.weaknesses,
+    roast.biggestRisk,
+    roast.biggestOpportunity,
+    roast.closingLine,
+    ...(fix ? [fix.tagline, fix.pitch, ...fix.firstSteps, ...fix.changes.flatMap((c) => [c.before, c.after, c.why])] : []),
+  ];
+  const truncatedStrings = strings.filter((s) => /(…|\.\.\.)$/.test(s.trim())).length;
+  // Headlines and taglines are allowed to be fragments; everything else should be a finished sentence.
+  const sentences = strings.filter((s) => s !== fix?.tagline && !roast.takes.some((t) => t.headline === s) && !fix?.changes.some((c) => c.area === s));
+  const unterminatedStrings = sentences.filter(isUnterminated).length;
+  const arithmetic = arithmeticErrors(allText.join(" | "));
 
-  return { pitchGrounding, debateEngagement, debateHasConcession, possibleInventedFigures, clicheHits, personaOverlap, truncatedStrings };
+  const own = (id: keyof typeof PERSONAS) => PERSONAS[id].name.toLowerCase();
+  const selfReferences =
+    roast.takes.filter((t) => [t.headline, ...t.points, t.strength, t.weakness].some((x) => x.toLowerCase().includes(own(t.persona)))).length +
+    roast.debate.filter((d) => d.line.toLowerCase().includes(own(d.speaker))).length;
+
+  return { pitchGrounding, debateEngagement, debateHasConcession, possibleInventedFigures, clicheHits, personaOverlap, truncatedStrings, unterminatedStrings, arithmeticErrors: arithmetic.length, selfReferences };
 }

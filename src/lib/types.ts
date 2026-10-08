@@ -75,12 +75,20 @@ export const PersonaScoresSchema = z.object({
 });
 export type PersonaScores = z.infer<typeof PersonaScoresSchema>;
 
+/**
+ * FIX text where cutting a string loses its meaning (a step's pass/fail
+ * threshold, the end of the pitch). The prompt asks for much less than this;
+ * the normaliser rejects anything longer instead of truncating it.
+ */
+export const FIX_STEP_MAX = 420;
+export const FIX_PITCH_MAX = 1400;
+
 export const FixResultSchema = z.object({
   title: text(64),
   tagline: text(140),
-  pitch: text(1100),
+  pitch: text(FIX_PITCH_MAX),
   changes: z.array(FixChangeSchema).min(3).max(5),
-  firstSteps: z.array(text(240)).min(3).max(3),
+  firstSteps: z.array(text(FIX_STEP_MAX)).min(3).max(3),
   projectedScores: PersonaScoresSchema,
   projectedOverall: z.number().int().min(0).max(100),
   projectedVerdict: VerdictSchema,

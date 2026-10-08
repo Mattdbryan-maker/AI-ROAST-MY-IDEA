@@ -65,3 +65,62 @@ test("rejects bad input at the API", async ({ request }) => {
   expect(res.status()).toBe(400);
   expect((await res.json()).error.code).toBe("invalid_input");
 });
+
+test("FIX screen shows long advice in full, without clipping or overflow", async ({ page }, testInfo) => {
+  const longStep = (n: number) =>
+    `Step ${n}: run the free draft past twelve best men on a real upcoming speech; pass if at least eight say they would pay £29 for the polished version, and if fewer, test whether the rehearsal coach or the fact-check step is the draw before building anything else, ending here ${n}.`.padEnd(
+      400,
+      " ",
+    );
+  const longPitch = `${"We sell a calm, specific service to people with a speech due within four weeks, priced so the first sale pays for the ad that found them. ".repeat(9)}Final sentence of the pitch.`.trim();
+  const fix = {
+    title: "Speech Coach Pro With A Rather Long Name",
+    tagline: "A tagline that is deliberately close to the one hundred and forty character limit so wrapping is exercised properly here ok",
+    pitch: longPitch,
+    changes: [1, 2, 3, 4, 5].map((i) => ({
+      area: `Change area ${i}`,
+      before: "The original idea handled this in a vague way that nobody on the panel believed for a second. ".repeat(2).trim().slice(0, 230),
+      after: `After: a much more specific approach with a named customer, a price and a channel, costing roughly two weeks of build time and one paid test. ${"More detail. ".repeat(6)}`.slice(0, 275),
+      why: "Because the panel's objection was about exactly this and the change answers it with a measurable test rather than a slogan. ".repeat(3).slice(0, 315),
+      persona: (["investor", "engineer", "marketer", "customer", "investor"] as const)[i - 1],
+    })),
+    firstSteps: [longStep(1), longStep(2), longStep(3)].map((s) => s.trim()),
+    projectedScores: { investor: 62, engineer: 60, marketer: 68, customer: 63 },
+    projectedOverall: 63,
+    projectedVerdict: "FIX",
+    mode: "demo",
+  };
+  await page.route("**/api/fix", (route) => route.fulfill({ json: fix }));
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Uber for dog walking" }).click();
+  await page.getByRole("button", { name: /put it on trial/i }).click();
+  await expect(page.getByText(/testimony/i)).toBeVisible({ timeout: 20_000 });
+  await page.getByRole("button", { name: /skip to verdict/i }).click();
+  await expect(page.getByText(/^(KILL IT|FIX IT|BUILD IT)$/)).toBeVisible({ timeout: 40_000 });
+  await page.getByRole("button", { name: /fix my idea/i }).first().click();
+  await expect(page.getByText(/your next three moves/i)).toBeVisible({ timeout: 25_000 });
+
+  // Every step is rendered to its last word.
+  for (const n of [1, 2, 3]) await expect(page.getByText(new RegExp(`ending here ${n}\.`))).toBeVisible();
+  await expect(page.getByText("Final sentence of the pitch.")).toBeVisible();
+
+  // No horizontal overflow, and no text box is clipped (content taller than its box).
+  const layout = await page.evaluate(() => {
+    const doc = document.documentElement;
+    const clipped = [...document.querySelectorAll<HTMLElement>("p, li, h1, h2, h3, article")].filter((el) => el.scrollHeight > el.clientHeight + 2 && getComputedStyle(el).overflow !== "visible").length;
+    const wide = [...document.querySelectorAll<HTMLElement>("p, li, article")].filter((el) => el.getBoundingClientRect().right > window.innerWidth + 1).length;
+    return { overflowX: doc.scrollWidth - doc.clientWidth, clipped, wide };
+  });
+  expect(layout.overflowX).toBeLessThanOrEqual(1);
+  expect(layout.clipped).toBe(0);
+  expect(layout.wide).toBe(0);
+
+  // Sections reveal as they scroll into view; walk the page so the capture shows all of them.
+  const height = await page.evaluate(() => document.documentElement.scrollHeight);
+  for (let y = 0; y < height; y += 500) {
+    await page.evaluate((top) => window.scrollTo(0, top), y);
+    await page.waitForTimeout(250);
+  }
+  await page.screenshot({ path: testInfo.outputPath("fix-long-text.png"), fullPage: true });
+});
