@@ -24,7 +24,7 @@ const SEQUENCES = {
     label: "Case file",
   },
   fix: {
-    steps: ["Extracting criticism", "Finding the wedge", "Fixing the business model", "Cutting the scope", "Re-pitching the panel"],
+    steps: ["Extracting criticism", "Finding the wedge", "Fixing the pricing", "Cutting the scope", "Re-pitching the panel"],
     stalling: ["Stress-testing it", "Arguing with Sterling", "Rewriting slide nine", "Removing buzzwords", "Checking the maths"],
     label: "Rebuild",
   },

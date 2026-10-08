@@ -74,7 +74,7 @@ Reasoning ("thinking") is **off** by default (`OLLAMA_THINK=false`). The panel's
 
 ## How model speed affects the show
 
-`bench/results/` contains a speed simulation using the mock Ollama server at three assumed speeds. Its timings are simulated, not measured on real models; it tests how the *frontend* copes. The summary is in the PR description and in that run's `report.md`. The key thresholds:
+[speed-simulation.md](speed-simulation.md) runs the mock Ollama server at three assumed speeds. Its timings are simulated, not measured on real models; it tests how the *frontend* copes. The key thresholds:
 
 - The analysis sequence covers the first ~4.3 s. A model whose first panelist speaks within ~4 s adds **no visible wait**.
 - Each testimony takes ~10–15 s to perform (typing plus reading). A model producing at least ~100 characters per second (≈ 30 tokens/s) stays ahead of the show. Slower models make viewers watch a live caret mid-sentence. That still works, because the words stream as written, but it's slower.
