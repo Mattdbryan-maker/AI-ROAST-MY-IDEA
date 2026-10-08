@@ -95,9 +95,10 @@ export class OllamaClient implements LlmClient {
 
   async *stream(req: LlmRequest): AsyncGenerator<RoastChunk> {
     const timer = new StreamTimer(this.opts, req.signal);
+    let reader: ReadableStreamDefaultReader<string> | undefined;
     try {
       const res = await this.post(req, timer.signal);
-      const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
+      reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
       const stripper = new ThinkTagStripper();
       let buffer = "";
       let finished = false;
@@ -132,11 +133,12 @@ export class OllamaClient implements LlmClient {
         }
       }
       if (!finished) throw new InvalidResponseError("The Ollama stream ended before the model finished");
-      void reader.cancel().catch(() => {});
     } catch (err) {
       throw timer.explain(err, this);
     } finally {
       timer.dispose();
+      // Always close the connection, including when the consumer stops early: Ollama stops generating when it closes.
+      void reader?.cancel().catch(() => {});
     }
   }
 

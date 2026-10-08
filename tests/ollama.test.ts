@@ -167,6 +167,8 @@ describe("OllamaClient failures", () => {
     })();
     await expect(run).rejects.toThrow(/abort/i);
     expect(seen.length).toBe(5);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(mock.activeStreams()).toBe(0);
     expect(mock.requests.filter((r) => r.path === "/api/chat")).toHaveLength(1);
   });
 
@@ -194,5 +196,16 @@ describe("multi-call debate over Ollama", () => {
     expect(lastTurn).toContain(done.roast.debate[3].line.slice(0, 20));
     // The debate streamed in live, line by line.
     expect(events.filter((e) => e.type === "debate").length).toBeGreaterThan(5);
+  });
+});
+
+describe("OllamaClient connection hygiene", () => {
+  it("closes the connection when the consumer stops reading early", async () => {
+    const { client, mock } = await setup({ cps: 200 });
+    for await (const chunk of client.stream({ system: "s", user: `<pitch>${IDEA}</pitch>`, purpose: "roast" })) {
+      if (chunk.type === "text") break;
+    }
+    await new Promise((r) => setTimeout(r, 200));
+    expect(mock.activeStreams()).toBe(0);
   });
 });

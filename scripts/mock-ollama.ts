@@ -42,6 +42,8 @@ export interface MockOllama {
   url: string;
   port: number;
   requests: { path: string; body: Record<string, unknown> }[];
+  /** Chat responses currently streaming (connection still open). */
+  activeStreams(): number;
   close(): Promise<void>;
 }
 
@@ -79,6 +81,7 @@ function answerFor(body: Record<string, unknown>): string {
 export function startMockOllama(options: MockOllamaOptions = {}): Promise<MockOllama> {
   const models = options.models ?? ["mock-qwen", "mock-qwen:latest"];
   const requests: MockOllama["requests"] = [];
+  let active = 0;
   const known = (name: unknown) => typeof name === "string" && models.includes(name);
 
   const server: Server = createServer(async (req, res) => {
@@ -116,6 +119,8 @@ export function startMockOllama(options: MockOllamaOptions = {}): Promise<MockOl
     }
 
     res.writeHead(200, { "Content-Type": "application/x-ndjson" });
+    active++;
+    res.on("close", () => active--);
     const write = (data: unknown) => res.write(`${JSON.stringify(data)}\n`);
     const cps = options.cps ?? 400;
     let closed = false;
@@ -175,6 +180,7 @@ export function startMockOllama(options: MockOllamaOptions = {}): Promise<MockOl
         url: `http://127.0.0.1:${port}`,
         port,
         requests,
+        activeStreams: () => active,
         close: () =>
           new Promise<void>((r) => {
             server.closeAllConnections();
