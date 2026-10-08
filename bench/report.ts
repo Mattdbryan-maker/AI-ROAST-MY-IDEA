@@ -178,8 +178,22 @@ export function renderReport(run: BenchRun): string {
 
   const failures = run.records.filter((r) => !r.ok);
   if (failures.length) {
-    push("", "## Failures", "", "| Target | Idea | Stage | Code | Message |", "|---|---|---|---|---|");
-    for (const f of failures) push(`| \`${f.target}\` | ${f.ideaId} | ${f.failedAt} | ${f.errorCode} | ${(f.errorMessage ?? "").replace(/\|/g, "\\|").slice(0, 160)} |`);
+    push(
+      "",
+      "## Failures",
+      "",
+      "Failed journeys can still be billed: tokens below are measured from the provider's usage reports and the cost is an estimate from them. A failed run is never shown as free; `unknown` means no price is on file.",
+      "",
+      "| Target | Idea | Stage | Code | Tokens in / out | Est. cost | Message |",
+      "|---|---|---|---|---|---|---|",
+    );
+    for (const f of failures) {
+      const calls = Object.values(f.usage);
+      const tokIn = calls.reduce((n, u) => n + (u?.inputTokens ?? 0) + (u?.cacheReadTokens ?? 0) + (u?.cacheWriteTokens ?? 0), 0);
+      const tokOut = calls.reduce((n, u) => n + (u?.outputTokens ?? 0), 0);
+      const cost = f.provider === "ollama" ? "local" : f.costUsd.journey === null ? "unknown" : usd(f.costUsd.journey);
+      push(`| \`${f.target}\` | ${f.ideaId} | ${f.failedAt} | ${f.errorCode} | ${num(tokIn)} / ${num(tokOut)} | ${cost} | ${(f.errorMessage ?? "").replace(/\|/g, "\\|").slice(0, 160)} |`);
+    }
   }
 
   push(

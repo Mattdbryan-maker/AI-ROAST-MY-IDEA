@@ -66,7 +66,7 @@ export const ModelFixSchema = z.object({
 });
 
 /** Bumped whenever prompt wording changes, so benchmark reports say which prompts they measured. */
-export const PROMPT_VERSION = "2026-10-08.2";
+export const PROMPT_VERSION = "2026-10-08.3";
 
 /**
  * Each persona: what they care about, how they talk, their signature move, and
@@ -135,7 +135,8 @@ THE DEBATE (this is the highlight — make it a real argument)
 - Every later line responds directly to the line before it: rebut it with a reason, concede part of it, or escalate with a new angle. No line may just restate its speaker's testimony.
 - Include at least one genuine concession ("Fine, WALLET's right about the price, but…") and at least one moment where someone changes the terms of the argument.
 - The last line names the crux: the single question that decides whether this idea lives or dies.
-- Use names (STERLING, KERNEL, HYPE, WALLET), never persona ids, in the dialogue.
+- Inside the spoken lines, refer to panelists by name (STERLING, KERNEL, HYPE, WALLET), never by persona id.
+- The "speaker" field of each debate entry is a machine-readable id, not a name: it must be exactly one of "investor", "engineer", "marketer" or "customer" (lower case). Never put STERLING, KERNEL, HYPE or WALLET in "speaker" or "persona".
 
 SCORING
 - Each persona scores 0-100 from their own perspective, after making their arguments. Use the full range honestly: most ideas land between 30 and 75. Below 25 means fundamentally broken; above 85 is rare and must be earned.

@@ -72,9 +72,15 @@ export class AnthropicClient implements LlmClient {
    */
   async *stream(req: LlmRequest): AsyncGenerator<RoastChunk> {
     let sawText = false;
+    // Usage is tracked from the raw events so a request that fails after generating
+    // (and is still billed) is reported, not just one that completes cleanly.
+    let usage: Record<string, unknown> = {};
+    let reported = false;
     try {
       const stream = this.client.beta.messages.stream(this.params(req), { signal: req.signal });
       for await (const event of stream) {
+        if (event.type === "message_start") usage = { ...usage, ...definedOnly(event.message?.usage) };
+        else if (event.type === "message_delta") usage = { ...usage, ...definedOnly(event.usage) };
         if (event.type === "content_block_start" && event.content_block.type === "fallback" && sawText) {
           sawText = false;
           yield { type: "restart" };
@@ -84,10 +90,13 @@ export class AnthropicClient implements LlmClient {
         }
       }
       const final = await stream.finalMessage();
+      reported = true;
       req.onUsage?.(usageOf(final.usage));
       checkStopReason(final.stop_reason);
     } catch (err) {
       throw mapApiError(err);
+    } finally {
+      if (!reported && Object.keys(usage).length) req.onUsage?.(usageOf(usage));
     }
   }
 
@@ -100,7 +109,7 @@ export class AnthropicClient implements LlmClient {
       model: this.model,
       max_tokens: req.maxTokens ?? 16000,
       thinking: { type: "adaptive" },
-      output_config: { effort: this.effort, ...(req.schema ? { format: zodOutputFormat(req.schema) } : {}) },
+      output_config: { effort: this.effort, ...(req.schema ? { format: schemaFormat(req.schema) } : {}) },
       // Stable system prompt first so it can be served from the prompt cache.
       system: [{ type: "text", text: req.system, cache_control: { type: "ephemeral" } }],
       messages: [{ role: "user", content: req.user }],
@@ -120,6 +129,23 @@ export class AnthropicProvider extends ModelRoastProvider {
     const fixClient = opts.fixModel && opts.fixModel !== client.model ? new AnthropicClient({ ...opts, model: opts.fixModel }) : undefined;
     super(client, { ...opts, fixClient });
   }
+}
+
+/**
+ * Structured-output format for the API request only. The SDK's own `parse` hook
+ * is dropped on purpose: it would validate the response against the strict Zod
+ * schema before we see it and throw an untyped error on any mismatch (for
+ * example a character name where a persona id belongs). Parsing, alias
+ * handling and strict validation all happen in ./normalize.ts instead.
+ */
+function schemaFormat(schema: NonNullable<LlmRequest["schema"]>) {
+  const { parse: _parse, ...format } = zodOutputFormat(schema);
+  void _parse;
+  return format;
+}
+
+function definedOnly(value: unknown): Record<string, unknown> {
+  return Object.fromEntries(Object.entries((value ?? {}) as Record<string, unknown>).filter(([, v]) => v !== null && v !== undefined));
 }
 
 function usageOf(usage: unknown): LlmUsage {
@@ -155,6 +181,10 @@ function mapApiError(err: unknown): unknown {
   }
   if (err instanceof Anthropic.APIError) {
     return new ProviderError(`The AI provider failed: ${err.message}`);
+  }
+  // The SDK's own structured-output parsing failure (a plain AnthropicError). Recoverable: retry.
+  if (err instanceof Anthropic.AnthropicError && /^Failed to parse structured output/.test(err.message)) {
+    return new InvalidResponseError(err.message);
   }
   return err;
 }
