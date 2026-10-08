@@ -99,3 +99,46 @@ describe("AnthropicProvider.roastStream", () => {
     await expect(consume()).rejects.toMatchObject({ code: "refused" });
   });
 });
+
+describe("AnthropicProvider (phase 2)", () => {
+  it("routes FIX MY IDEA to a separate model when configured, and reports usage", async () => {
+    const fixJson = JSON.stringify({
+      title: "Better",
+      tagline: "Sharper",
+      pitch: "A pitch.",
+      changes: [1, 2, 3].map((i) => ({ area: `A${i}`, before: "b", after: "a", why: "w", persona: "investor" })),
+      firstSteps: ["1", "2", "3"],
+      projectedScores: { investor: 70, engineer: 70, marketer: 70, customer: 70 },
+    });
+    const create = vi.fn().mockResolvedValue({
+      stop_reason: "end_turn",
+      content: [{ type: "text", text: fixJson }],
+      usage: { input_tokens: 1200, output_tokens: 800, cache_read_input_tokens: 900 },
+    });
+    const client = { beta: { messages: { create } } } as unknown as Anthropic;
+    const usage: unknown[] = [];
+    const provider = new AnthropicProvider({ apiKey: "t", client, model: "claude-haiku-5-5", fixModel: "claude-sonnet-5-5", onUsage: (u) => usage.push(u) });
+    const { demoRoast } = await import("@/lib/ai/demo/engine");
+    await provider.fix("An idea worth fixing.", demoRoast("An idea worth fixing."));
+    expect(create.mock.calls[0][0].model).toBe("claude-sonnet-5-5");
+    expect(usage[0]).toMatchObject({ purpose: "fix", model: "claude-sonnet-5-5", usage: { inputTokens: 1200, outputTokens: 800, cacheReadTokens: 900 } });
+  });
+
+  it("sends Haiku requests without fallbacks or sampling parameters", async () => {
+    const { client, create } = fakeClient([{ text: modelJson() }]);
+    await new AnthropicProvider({ apiKey: "t", client, model: "claude-haiku-5-5" }).roast("A cheap and cheerful idea.");
+    const params = create.mock.calls[0][0];
+    expect(params.fallbacks).toBeUndefined();
+    expect(params.temperature).toBeUndefined();
+    expect(params.top_p).toBeUndefined();
+  });
+
+  it("asks for plain text (no output format) for a debate turn", async () => {
+    const { AnthropicClient } = await import("@/lib/ai/anthropic");
+    const { client, create } = fakeClient([{ text: "Fine, HYPE, but the margin still dies." }]);
+    const text = await new AnthropicClient({ apiKey: "t", client }).complete({ system: "s", user: "u", purpose: "debate", maxTokens: 2000 });
+    expect(text).toBe("Fine, HYPE, but the margin still dies.");
+    expect(create.mock.calls[0][0].output_config.format).toBeUndefined();
+    expect(create.mock.calls[0][0].max_tokens).toBe(2000);
+  });
+});

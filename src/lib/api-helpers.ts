@@ -28,7 +28,9 @@ export function toPublicError(err: unknown): ApiError["error"] {
         : err.code === "invalid_response"
           ? "The panel got into a fistfight and returned nonsense. Please try again."
           : "The panel walked out (AI provider error). Please try again.";
-    return { code: err.code, message };
+    // Locally, show the operator the real reason (e.g. "Run: ollama pull qwen3.5:4b"). Never in production.
+    const detail = process.env.NODE_ENV !== "production" || process.env.SHOW_AI_ERRORS === "true" ? ` [${err.message}]` : "";
+    return { code: err.code, message: message + detail };
   }
   console.error("[ai] unexpected error", err);
   return { code: "internal", message: "Something broke backstage. Please try again." };

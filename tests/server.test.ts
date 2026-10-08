@@ -1,18 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveProviderName } from "@/lib/ai";
 import { clientKey, createRateLimiter } from "@/lib/rate-limit";
-
-describe("provider selection", () => {
-  it("falls back to the demo panel without a key", () => {
-    expect(resolveProviderName({} as NodeJS.ProcessEnv)).toBe("demo");
-    expect(resolveProviderName({ AI_PROVIDER: "anthropic" } as unknown as NodeJS.ProcessEnv)).toBe("demo");
-  });
-
-  it("uses Anthropic when a key is present unless demo is forced", () => {
-    expect(resolveProviderName({ ANTHROPIC_API_KEY: "k" } as unknown as NodeJS.ProcessEnv)).toBe("anthropic");
-    expect(resolveProviderName({ ANTHROPIC_API_KEY: "k", AI_PROVIDER: "demo" } as unknown as NodeJS.ProcessEnv)).toBe("demo");
-  });
-});
 
 describe("rate limiter", () => {
   it("allows up to the limit per window, then blocks until reset", () => {

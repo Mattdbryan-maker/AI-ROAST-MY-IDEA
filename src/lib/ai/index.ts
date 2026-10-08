@@ -1,42 +1,49 @@
 import "server-only";
-import { AnthropicProvider } from "./anthropic";
+import { AnthropicClient } from "./anthropic";
+import { ConfigError, loadAiConfig, type AiConfig } from "./config";
 import { DemoProvider } from "./demo/engine";
-import type { RoastProvider } from "./provider";
+import { ModelRoastProvider } from "./model-provider";
+import { OllamaClient } from "./ollama";
+import { ProviderError, type RoastProvider } from "./provider";
 
 export type { RoastProvider } from "./provider";
 export { ProviderError, InvalidResponseError } from "./provider";
+export { publicStatus } from "./config";
 
 /**
- * Picks the AI provider from environment configuration.
- *
- *   AI_PROVIDER=anthropic | demo   (default: anthropic when ANTHROPIC_API_KEY is set, otherwise demo)
- *
- * To add a provider: implement RoastProvider and add a case below.
+ * Builds the configured provider (see ./config.ts for the environment
+ * variables). To add a provider: implement LlmClient (./llm.ts) and add a case.
  */
-export function resolveProviderName(env: NodeJS.ProcessEnv = process.env): "anthropic" | "demo" {
-  const requested = env.AI_PROVIDER?.trim().toLowerCase();
-  if (requested === "demo") return "demo";
-  if (requested === "anthropic") return env.ANTHROPIC_API_KEY ? "anthropic" : "demo";
-  return env.ANTHROPIC_API_KEY ? "anthropic" : "demo";
+export function createProvider(config: AiConfig): RoastProvider {
+  switch (config.provider) {
+    case "demo":
+      return new DemoProvider({ cps: config.demoCps });
+    case "anthropic": {
+      const client = new AnthropicClient(config);
+      const fixClient = config.fixModel !== config.model ? new AnthropicClient({ ...config, model: config.fixModel }) : undefined;
+      return new ModelRoastProvider(client, { debateMode: config.debateMode, fixClient });
+    }
+    case "ollama": {
+      const client = new OllamaClient(config);
+      const fixClient = config.fixModel !== config.model ? new OllamaClient({ ...config, model: config.fixModel }) : undefined;
+      return new ModelRoastProvider(client, { debateMode: config.debateMode, fixClient });
+    }
+  }
 }
 
 let cached: RoastProvider | null = null;
 
+/** The app's provider, built once per server process. Configuration errors surface as a ProviderError per request. */
 export function getProvider(): RoastProvider {
   if (cached) return cached;
-  const name = resolveProviderName();
-  if (name === "anthropic") {
-    cached = new AnthropicProvider({
-      apiKey: process.env.ANTHROPIC_API_KEY!,
-      model: process.env.ANTHROPIC_MODEL,
-      effort: process.env.ANTHROPIC_EFFORT,
-      serverFallback: process.env.ANTHROPIC_SERVER_FALLBACK !== "false",
-    });
-  } else {
-    if (process.env.AI_PROVIDER === "anthropic") {
-      console.warn("[ai] AI_PROVIDER=anthropic but ANTHROPIC_API_KEY is missing — using the demo panel.");
+  try {
+    cached = createProvider(loadAiConfig());
+    return cached;
+  } catch (err) {
+    if (err instanceof ConfigError) {
+      console.error(`[ai] configuration error: ${err.message}`);
+      throw new ProviderError(`Server misconfigured: ${err.message}`, "provider_error", false);
     }
-    cached = new DemoProvider({ cps: Number(process.env.DEMO_STREAM_CPS ?? 450) });
+    throw err;
   }
-  return cached;
 }

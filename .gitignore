@@ -49,3 +49,7 @@ next-env.d.ts
 
 # standalone demo build
 /dist/
+
+# benchmark runs (keep locally; commit a report deliberately if you want to)
+/bench/results/*
+!/bench/results/README.md
