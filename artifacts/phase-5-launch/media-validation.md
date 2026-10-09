@@ -63,3 +63,13 @@ Creative-gate answers, honestly: the first frame is the verdict stamp ("FIX IT",
 - **Subtitles** (`.srt`) are generated from the same list as the burned-in captions; timings match by construction, but I did not load them in a platform uploader. The captions are burned in, so the `.srt` is optional.
 - The footage was recorded on a machine under test load; a few frames show the app mid-transition (blur-in). None shows an error.
 - The app's persona-name wrap fix and the `overflow-wrap` change were made during this phase. The desktop footage was recorded after the persona-name fix; the later heading-wrap refinement does not affect these screens.
+
+## Verification pass (2026-10-09, after the first render)
+
+Re-probed both files (unchanged: H.264 High yuv420p, 1080×1920 and 1920×1080, 30 fps, AAC-LC; 31.6 s and 67.5 s; full decode with no errors) and re-read frames at the cuts. Defects found in the first render, all fixed by re-rendering from the retained raw footage:
+
+- **Caption legibility.** Captions and the SAMPLE SESSION label sat on a 42% / 55% black box, so dense app text (the FIX pitch, the first-steps list) showed through and collided with them: the "FIX MY IDEA rebuilds it" caption and the "Would your business idea survive?" CTA were hard to read, and the CTA caption hid half of step 3. The boxes are now 94% (reel) / 85% (demo) opaque.
+- **Stray fragment in frame 1.** The app's own closing-line quote peeked out beside the hook caption as a lone "“On". The hook now has a full-width opaque band starting just below the FIX IT stamp (the first version of the band clipped the stamp; moved down).
+- **Orphaned word.** The demo's last caption wrapped to a single-word second line ("it."). Reworded to "New pitch, what changed and why, plus three steps to test it." (the demo `.srt` follows automatically).
+
+Still not verified: I did not watch the videos at speed or listen to the audio, and the safe areas were not checked inside Instagram, TikTok or YouTube.

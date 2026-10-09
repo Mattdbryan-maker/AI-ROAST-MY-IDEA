@@ -98,3 +98,12 @@ Run the AI fitness-coach pitch from the checklist through to FIX (about $0.003).
 ## Recommendation
 
 Is it ready for a small controlled beta? **Not yet, but close:** the code, tests, cost guards and launch media are in place; what prevents launch is one live run to check the new prompts, a console spend limit, and (if you deploy beyond a single server) shared rate limiting. The launch video can be reviewed now but should not be posted until those are done and its replayed footage is either replaced or kept with the disclosure.
+
+## Independent verification pass (2026-10-09)
+
+A second session re-checked the claims above rather than redoing the work. HEAD at the start was `b5ce50d`.
+
+- **Gates re-run:** lint clean, typecheck clean, `npm test` 254/254, build succeeds, `test:e2e` 13/13, `test:e2e:ollama` 3/3 (mock Ollama server). The first `test:e2e` attempt failed with timeouts while other CPU-heavy commands were running in parallel; on a clean rerun it passed 13/13, so that was contention, not a code fault.
+- **Validators against real output.** All 46 stored real Haiku and Qwen FIX/roast outputs in `bench/results/` were replayed through the current `normalizeRoast` and `normalizeFix` with grounding context. 46/46 roasts pass; 45/46 FIXes pass. The one rejection is a real Haiku FIX (wedding-speech idea) whose pitch says "a human writer (me, at first) reads your draft…": the `(me, …)` pattern in `checks.ts` treats it as an invented founder claim. That sentence is listed as an intended invented-biography case in `tests/grounding.test.ts`, so I left the rule alone. It is a judgement call for the owner: about 1 in 46 replayed outputs would cost one retry. If it should be allowed, narrow the pattern to `(me, a former …)`-style descriptions.
+- **Media defects found and fixed** (caption legibility, a stray text fragment in the hook frame, an orphaned caption word): see `artifacts/phase-5-launch/media-validation.md`, "Verification pass". `scripts/launch/render.mjs` is the only code change.
+- **Unchanged conclusions:** no live Haiku run occurred and no paid request was made; the videos are review drafts built on replayed (not live) output; launch readiness stays CONDITIONAL GO with the same blockers (console spend limit, shared rate limiting, one live run against the new prompts).

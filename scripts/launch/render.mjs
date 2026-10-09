@@ -21,6 +21,9 @@ const FONT = "C\\:/Windows/Fonts/impact.ttf";
 const FONT_BODY = "C\\:/Windows/Fonts/arialbd.ttf";
 
 const reel = which === "reel";
+// Caption backing. 0.42 let dense app text (the FIX pitch, the first-steps list) show through and collide with the
+// caption on a phone, so captions and the disclosure label now sit on a mostly opaque box.
+const CAPTION_BOX = reel ? 0.94 : 0.85;
 const W = reel ? 1080 : 1920;
 const H = reel ? 1920 : 1080;
 const marks = JSON.parse(readFileSync(join(RAW, `${reel ? "mobile" : "desktop"}-marks.json`), "utf8"));
@@ -32,7 +35,7 @@ const m = (name, plus = 0) => marks[name] + D + plus;
 /** [source start, output seconds, speed, caption lines, caption style] */
 const SEGMENTS = reel
   ? [
-      { id: "hook", s: m("verdict", 0.1), d: 2.6, v: 1, cap: ["I built four AI judges", "to destroy your", "business idea."], size: 70, yb: 1500 },
+      { id: "hook", s: m("verdict", 0.1), d: 2.6, v: 1, cap: ["I built four AI judges", "to destroy your", "business idea."], size: 70, yb: 1500, band: [1240, 1530] },
       { id: "type", s: m("typing_start", 0.4), d: 2.0, v: 3.4, cap: ["Pitch it any", "business idea."] },
       { id: "wait", s: m("submitted", 0.8), d: 1.8, v: 2.4, cap: ["Four AI judges", "take their seats."] },
       { id: "sterling", s: m("trial_started", 1.0), d: 2.7, v: 1, cap: ["STERLING, the investor:", "“Thirty-five pounds buys a", "visit, not a relationship.”"] },
@@ -55,7 +58,7 @@ const SEGMENTS = reel
       { id: "debate", s: m("debate_start", 0.5), d: 9.5, v: 3.2, cap: ["Then the panel argues with itself."] },
       { id: "verdict", s: m("verdict", -0.4), d: 6.5, v: 1, cap: ["The verdict: FIX IT, 52 out of 100."] },
       { id: "fix", s: m("fix_clicked", 0.2), d: 3.5, v: 2.0, cap: ["FIX MY IDEA rebuilds the pitch around the panel’s objections."] },
-      { id: "fixpage", s: m("fix_visible", 1.0), d: 8.5, v: 1.6, cap: ["New pitch, what changed and why, and three first steps to test it."] },
+      { id: "fixpage", s: m("fix_visible", 1.0), d: 8.5, v: 1.6, cap: ["New pitch, what changed and why, plus three steps to test it."] },
       { id: "end", s: m("fix_scrolled", -3.0), d: 3.0, v: 1, cap: ["AI ROAST MY IDEA. Link coming soon."] },
     ];
 
@@ -108,12 +111,14 @@ SEGMENTS.forEach((seg, i) => {
   const size = seg.size ?? (reel ? (seg.big ? 92 : 70) : 46);
   writeFileSync(join(WORK, `cap${i}.txt`), lines.join("\n"));
   const y = reel ? `${seg.yb ?? 1385}-text_h` : `${H}-95-text_h`;
+  // A full-width band hides app text that would otherwise peek out beside a narrow caption box.
+  if (seg.band) filters.push(`drawbox=x=0:y=${seg.band[0]}:w=iw:h=${seg.band[1] - seg.band[0]}:color=black:t=fill:enable='between(t,${a.toFixed(3)},${b.toFixed(3)})'`);
   filters.push(
-    `drawtext=fontfile='${FONT}':textfile='cap${i}.txt':fontsize=${size}:fontcolor=white:borderw=${reel ? 7 : 4}:bordercolor=black:box=1:boxcolor=black@0.42:boxborderw=${reel ? 22 : 16}:line_spacing=${reel ? 10 : 6}:x=(w-text_w)/2:y=${y}:enable='between(t,${a.toFixed(3)},${b.toFixed(3)})'`,
+    `drawtext=fontfile='${FONT}':textfile='cap${i}.txt':fontsize=${size}:fontcolor=white:borderw=${reel ? 7 : 4}:bordercolor=black:box=1:boxcolor=black@${CAPTION_BOX}:boxborderw=${reel ? 22 : 16}:line_spacing=${reel ? 10 : 6}:x=(w-text_w)/2:y=${y}:enable='between(t,${a.toFixed(3)},${b.toFixed(3)})'`,
   );
   if (seg.sub) {
     writeFileSync(join(WORK, `sub${i}.txt`), seg.sub);
-    filters.push(`drawtext=fontfile='${FONT_BODY}':textfile='sub${i}.txt':fontsize=44:fontcolor=white:borderw=4:bordercolor=black:box=1:boxcolor=black@0.42:boxborderw=12:x=(w-text_w)/2:y=${(seg.yb ?? 1385) + 36}:enable='between(t,${a.toFixed(3)},${b.toFixed(3)})'`);
+    filters.push(`drawtext=fontfile='${FONT_BODY}':textfile='sub${i}.txt':fontsize=44:fontcolor=white:borderw=4:bordercolor=black:box=1:boxcolor=black@${CAPTION_BOX}:boxborderw=12:x=(w-text_w)/2:y=${(seg.yb ?? 1385) + 36}:enable='between(t,${a.toFixed(3)},${b.toFixed(3)})'`);
   }
   srt.push(`${i + 1}\n${stamp(a)} --> ${stamp(b - 0.05)}\n${lines.join(" ")}${seg.sub ? `\n${seg.sub}` : ""}\n`);
   timeline.push({ id: seg.id, start: +a.toFixed(2), end: +b.toFixed(2), speed: seg.v, source: +seg.s.toFixed(2) });
@@ -122,8 +127,8 @@ const total = t;
 writeFileSync(join(WORK, "label.txt"), LABEL.join("\n"));
 filters.push(
   reel
-    ? `drawtext=fontfile='${FONT_BODY}':textfile='label.txt':fontsize=27:fontcolor=white@0.92:box=1:boxcolor=black@0.55:boxborderw=10:line_spacing=6:x=(w-text_w)/2:y=1548`
-    : `drawtext=fontfile='${FONT_BODY}':textfile='label.txt':fontsize=21:fontcolor=white@0.9:box=1:boxcolor=black@0.55:boxborderw=8:x=(w-text_w)/2:y=${H}-48`,
+    ? `drawtext=fontfile='${FONT_BODY}':textfile='label.txt':fontsize=27:fontcolor=white@0.95:box=1:boxcolor=black@0.94:boxborderw=10:line_spacing=6:x=(w-text_w)/2:y=1548`
+    : `drawtext=fontfile='${FONT_BODY}':textfile='label.txt':fontsize=21:fontcolor=white@0.95:box=1:boxcolor=black@0.94:boxborderw=8:x=(w-text_w)/2:y=${H}-48`,
 );
 writeFileSync(join(WORK, "filters.txt"), filters.join(",\n"));
 const srtPath = join(ROOT, reel ? "AI_ROAST_MY_IDEA_LAUNCH_REEL_V1.srt" : "AI_ROAST_MY_IDEA_DEMO_V1.srt");
