@@ -57,6 +57,7 @@ export const LIMITS = {
   fixBefore: 320,
   fixAfter: 480,
   fixWhy: 420,
+  fixScoreNote: 320,
   /** A step ends with its pass/fail threshold, so it is never cut. */
   fixStep: 420,
   /** The close of the pitch carries its qualifications, so it is never cut. */
@@ -124,6 +125,8 @@ export const FixResultSchema = z.object({
   projectedScores: PersonaScoresSchema,
   projectedOverall: z.number().int().min(0).max(100),
   projectedVerdict: VerdictSchema,
+  /** Why the overall moves as projected, and the trade-off for any critic who falls. Optional so older results still validate. */
+  scoreNote: text(LIMITS.fixScoreNote).optional(),
   mode: z.enum(["ai", "demo"]),
 });
 export type FixResult = z.infer<typeof FixResultSchema>;

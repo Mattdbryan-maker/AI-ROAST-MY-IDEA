@@ -39,14 +39,23 @@
   }
 
   body {
-    /* A long unbroken token (a URL in a pitch or a step) wraps instead of widening the page on a phone. */
-    overflow-wrap: anywhere;
     background: var(--color-void);
     color: var(--color-bone);
     font-family: var(--font-sans);
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
+  }
+
+  /* A long unbroken token (a URL in a pitch or a step) wraps instead of widening the page on a phone.
+     Body text only: on display headings (persona names) it would also shrink the column and split STERLING mid-word. */
+  :where(p, li, dd):not(.font-display) {
+    overflow-wrap: anywhere;
+  }
+
+  /* Headings too, except the persona name (class persona-name): `anywhere` shrinks min-content, which would split STERLING mid-word. */
+  :where(h1, h2, h3):not(.persona-name) {
+    overflow-wrap: anywhere;
   }
 
   ::selection {

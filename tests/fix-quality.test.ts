@@ -172,7 +172,7 @@ describe("prompt contract", () => {
     expect(FIX_SYSTEM_PROMPT).toContain("never more than +20");
     expect(FIX_SYSTEM_PROMPT).toContain("Finish every step; never trail off");
     expect(FIX_SYSTEM_PROMPT).toContain("what each change costs");
-    expect(PROMPT_VERSION).toBe("2026-10-08.5");
+    expect(PROMPT_VERSION).toBe("2026-10-09.1");
   });
 });
 

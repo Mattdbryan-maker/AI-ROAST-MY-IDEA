@@ -1,0 +1,82 @@
+{
+  "total": 31.6,
+  "timeline": [
+    {
+      "id": "hook",
+      "start": 0,
+      "end": 2.6,
+      "speed": 1,
+      "source": 89.75
+    },
+    {
+      "id": "type",
+      "start": 2.6,
+      "end": 4.6,
+      "speed": 3.4,
+      "source": 3.47
+    },
+    {
+      "id": "wait",
+      "start": 4.6,
+      "end": 6.4,
+      "speed": 2.4,
+      "source": 10.23
+    },
+    {
+      "id": "sterling",
+      "start": 6.4,
+      "end": 9.1,
+      "speed": 1,
+      "source": 16.4
+    },
+    {
+      "id": "kernel",
+      "start": 9.1,
+      "end": 12,
+      "speed": 1,
+      "source": 28.78
+    },
+    {
+      "id": "hype",
+      "start": 12,
+      "end": 15,
+      "speed": 1,
+      "source": 43.47
+    },
+    {
+      "id": "wallet",
+      "start": 15,
+      "end": 18,
+      "speed": 1,
+      "source": 49.78
+    },
+    {
+      "id": "debate",
+      "start": 18,
+      "end": 21.2,
+      "speed": 1.5,
+      "source": 64.04
+    },
+    {
+      "id": "verdict",
+      "start": 21.2,
+      "end": 25.2,
+      "speed": 1,
+      "source": 91.85
+    },
+    {
+      "id": "fix",
+      "start": 25.2,
+      "end": 28.8,
+      "speed": 1,
+      "source": 106.95
+    },
+    {
+      "id": "cta",
+      "start": 28.8,
+      "end": 31.6,
+      "speed": 1,
+      "source": 113.29
+    }
+  ]
+}

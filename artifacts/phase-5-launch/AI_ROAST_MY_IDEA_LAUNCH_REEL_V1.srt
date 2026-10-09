@@ -1,0 +1,44 @@
+1
+00:00:00,000 --> 00:00:02,550
+I built four AI judges to destroy your business idea.
+
+2
+00:00:02,600 --> 00:00:04,550
+Pitch it any business idea.
+
+3
+00:00:04,600 --> 00:00:06,350
+Four AI judges take their seats.
+
+4
+00:00:06,400 --> 00:00:09,050
+STERLING, the investor: “Thirty-five pounds buys a visit, not a relationship.”
+
+5
+00:00:09,100 --> 00:00:11,950
+KERNEL, the engineer: “It is fixing them on a pavement with a dropped spoke and no stand.”
+
+6
+00:00:12,000 --> 00:00:14,950
+HYPE, the marketer: “A 30-minute slot is the exact length of a sandwich.”
+
+7
+00:00:15,000 --> 00:00:17,950
+WALLET, the customer: “I would never tell my partner what it cost.”
+
+8
+00:00:18,000 --> 00:00:21,150
+Then they argue. With each other.
+
+9
+00:00:21,200 --> 00:00:25,150
+FIX IT. 52 out of 100.
+
+10
+00:00:25,200 --> 00:00:28,750
+FIX MY IDEA rebuilds it. Projected score: 52 → 68.
+
+11
+00:00:28,800 --> 00:00:31,550
+Would your business idea survive?
+Link coming soon

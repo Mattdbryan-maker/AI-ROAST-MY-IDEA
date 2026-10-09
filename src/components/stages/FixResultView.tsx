@@ -200,6 +200,7 @@ export function FixResultView({
               );
             })}
           </ul>
+          {fix.scoreNote && <p className="mt-5 border-t border-white/[0.07] pt-4 text-sm leading-relaxed text-muted">{fix.scoreNote}</p>}
         </motion.div>
 
         {/* Next moves */}

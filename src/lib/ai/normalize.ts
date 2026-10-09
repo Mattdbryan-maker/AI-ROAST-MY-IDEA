@@ -275,6 +275,7 @@ export function normalizeFix(raw: unknown, mode: FixResult["mode"], context?: Fi
     projectedScores,
     projectedOverall,
     projectedVerdict: verdictFor(projectedOverall),
+    ...(raw.scoreNote ? { scoreNote: wholeText(raw.scoreNote, LIMITS.fixScoreNote, "score note") } : {}),
     mode,
   };
 
@@ -307,6 +308,11 @@ export function capProjectedScores(fix: FixResult, roast: Pick<Roast, "takes">):
     marketer: ceiling(fix.projectedScores.marketer, before.marketer),
     customer: ceiling(fix.projectedScores.customer, before.customer),
   };
+  const falls = (Object.keys(projectedScores) as (keyof typeof projectedScores)[]).filter((id) => projectedScores[id] < before[id]);
+  if (falls.length && !fix.scoreNote) {
+    // A critic liking the improved idea less is plausible (a change can add a real cost) but must be explained, not left as a puzzle.
+    throw new InvalidResponseError(`a critic's projected score falls (${falls.join(", ")}) but scoreNote does not explain the trade-off`);
+  }
   const projectedOverall = overallScore(projectedScores);
   return { ...fix, projectedScores, projectedOverall, projectedVerdict: verdictFor(projectedOverall) };
 }

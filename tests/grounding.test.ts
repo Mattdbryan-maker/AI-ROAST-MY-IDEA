@@ -200,10 +200,14 @@ describe("projected scores can't overstate viability", () => {
     expect(Object.values(capped.projectedScores).every((s) => s <= MAX_PROJECTED_SCORE)).toBe(true);
   });
 
-  it("does not pull a score below what the model projected, or below the starting score", () => {
-    const capped = capProjectedScores(fixWith({ investor: before.investor + 5, engineer: 0, marketer: before.marketer, customer: before.customer + 1 }), roast);
+  it("respects a critic whose score falls, but only when the trade-off is explained", () => {
+    const scores = { investor: before.investor + 5, engineer: 0, marketer: before.marketer, customer: before.customer + 1 };
+    expect(() => capProjectedScores(fixWith(scores), roast)).toThrow(/scoreNote/);
+    const explained = normalizeFix(rawFix(PITCH_BODY, { projectedScores: scores, scoreNote: "The engineer likes it less: the new tracking adds a second system to build." }), "ai");
+    const capped = capProjectedScores(explained, roast);
     expect(capped.projectedScores.investor).toBe(before.investor + 5);
     expect(capped.projectedScores.engineer).toBe(0); // the model's own number is respected; the cap only lowers
+    expect(capped.scoreNote).toContain("second system");
   });
 
   it("the FIX prompt asks for the same ceiling the code enforces", () => {

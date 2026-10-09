@@ -1,0 +1,89 @@
+{
+  "total": 67.5,
+  "timeline": [
+    {
+      "id": "intro",
+      "start": 0,
+      "end": 3.6,
+      "speed": 1,
+      "source": 1.26
+    },
+    {
+      "id": "type",
+      "start": 3.6,
+      "end": 7,
+      "speed": 3,
+      "source": 3.36
+    },
+    {
+      "id": "wait",
+      "start": 7,
+      "end": 10,
+      "speed": 2.2,
+      "source": 10.19
+    },
+    {
+      "id": "sterling",
+      "start": 10,
+      "end": 17,
+      "speed": 1.4,
+      "source": 16.34
+    },
+    {
+      "id": "kernel",
+      "start": 17,
+      "end": 23.5,
+      "speed": 1.4,
+      "source": 28.59
+    },
+    {
+      "id": "hype",
+      "start": 23.5,
+      "end": 30,
+      "speed": 1.4,
+      "source": 38.97
+    },
+    {
+      "id": "wallet",
+      "start": 30,
+      "end": 36.5,
+      "speed": 1.4,
+      "source": 49.33
+    },
+    {
+      "id": "debate",
+      "start": 36.5,
+      "end": 46,
+      "speed": 3.2,
+      "source": 58.05
+    },
+    {
+      "id": "verdict",
+      "start": 46,
+      "end": 52.5,
+      "speed": 1,
+      "source": 88.31
+    },
+    {
+      "id": "fix",
+      "start": 52.5,
+      "end": 56,
+      "speed": 2,
+      "source": 97.57
+    },
+    {
+      "id": "fixpage",
+      "start": 56,
+      "end": 64.5,
+      "speed": 1.6,
+      "source": 104.32
+    },
+    {
+      "id": "end",
+      "start": 64.5,
+      "end": 67.5,
+      "speed": 1,
+      "source": 110.43
+    }
+  ]
+}

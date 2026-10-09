@@ -53,3 +53,6 @@ next-env.d.ts
 # benchmark runs (keep locally; commit a report deliberately if you want to)
 /bench/results/*
 !/bench/results/README.md
+
+# launch media (large; regenerate with scripts/launch)
+/artifacts/

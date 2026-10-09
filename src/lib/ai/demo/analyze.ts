@@ -195,18 +195,18 @@ export function analysisLog(idea: string): string[] {
   const s = analyzeIdea(idea);
   const lines = [
     `pitch received · ${s.words} words`,
-    s.category ? `market detected · ${s.category}` : "market detected · unclear (concerning)",
-    s.monetization ? "business model · located" : "business model · NOT FOUND",
-    s.audience ? "target customer · identified" : "target customer · \"everyone\" (assumed)",
-    s.buzzwords.length ? `buzzwords detected · ${s.buzzwords.length} (${s.buzzwords.slice(0, 2).join(", ")})` : "buzzword density · acceptable",
+    s.category ? `topic · ${s.category}` : "topic · unclear (concerning)",
+    s.monetization ? "price or revenue · mentioned" : "price or revenue · NOT FOUND",
+    s.audience ? "target customer · named" : "target customer · \"everyone\" (assumed)",
+    s.buzzwords.length ? `buzzwords · ${s.buzzwords.length} (${s.buzzwords.slice(0, 2).join(", ")})` : "buzzwords · none spotted",
   ];
-  if (s.ai) lines.push("AI wrapper risk · elevated");
-  if (s.crypto) lines.push("blockchain · detected · panel sighs");
-  if (s.marketplace) lines.push("chicken-and-egg problem · likely");
-  if (s.hardware) lines.push("hardware · capital requirements high");
-  if (s.subscription) lines.push("subscription fatigue · checking");
-  if (s.uberFor) lines.push(`"uber for ${s.uberFor}" · comparison logged`);
-  lines.push("competitors · enumerating", "weak points · ranking", "roast · seasoning");
+  if (s.ai) lines.push("AI · mentioned · panel raises an eyebrow");
+  if (s.crypto) lines.push("blockchain · mentioned · panel sighs");
+  if (s.marketplace) lines.push("marketplace · mentioned");
+  if (s.hardware) lines.push("hardware · mentioned");
+  if (s.subscription) lines.push("subscription · mentioned");
+  if (s.uberFor) lines.push(`"uber for ${s.uberFor}" · noted`);
+  lines.push("panel · taking their seats", "knives · sharpening", "roast · seasoning");
   return lines;
 }
 

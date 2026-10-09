@@ -9,23 +9,21 @@ import { PersonaSigil } from "../ui/PersonaSigil";
 
 const SEQUENCES = {
   roast: {
-    steps: ["Assembling panel", "Analysing market", "Checking feasibility", "Searching for flaws", "Preparing roast"],
+    steps: ["Assembling panel", "Reading the pitch", "Briefing the panel", "Sharpening knives", "Preparing roast"],
     // Shown while waiting on a slow model. Each fits two lines of the display type at any width.
     stalling: [
       "Questioning assumptions",
-      "Consulting spreadsheets",
-      "Sharpening knives",
       "Arguing loudly",
       "Drafting insults",
-      "Checking the maths",
-      "Finding competitors",
       "Clearing throats",
+      "Rehearsing the zingers",
+      "Pouring more coffee",
     ],
     label: "Case file",
   },
   fix: {
-    steps: ["Extracting criticism", "Finding the wedge", "Fixing the pricing", "Cutting the scope", "Re-pitching the panel"],
-    stalling: ["Stress-testing it", "Arguing with Sterling", "Rewriting slide nine", "Removing buzzwords", "Checking the maths"],
+    steps: ["Rereading the criticism", "Looking for the wedge", "Rethinking the pitch", "Cutting the scope", "Re-pitching the panel"],
+    stalling: ["Stress-testing it", "Arguing with Sterling", "Rewriting slide nine", "Removing buzzwords", "Sharpening the pitch"],
     label: "Rebuild",
   },
 } as const;
@@ -185,7 +183,7 @@ export function Analyzing({
                 initial={reduced ? false : { opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.35, delay: (i % 2) * 0.25 }}
-                className={line.includes("NOT FOUND") || line.includes("elevated") || line.includes("sighs") ? "text-kill" : "text-bone/70"}
+                className={line.includes("NOT FOUND") || line.includes("eyebrow") || line.includes("sighs") ? "text-kill" : "text-bone/70"}
               >
                 <span className="text-[rgb(var(--accent))]">›</span> {line}
               </motion.li>

@@ -122,7 +122,7 @@ const EXPERIENCE_CLAIMS: RegExp[] = [
 export function ideaHasFounderFacts(idea: string): boolean {
   return (
     EXPERIENCE_CLAIMS.some((pattern) => pattern.test(idea)) ||
-    /\bI(?:'m| am| was| have|'ve| run| ran| work| worked| own| owned| founded| manage| managed| teach| taught| sell| sold)\b/i.test(idea) ||
+    /\bI(?: was| run| ran| work| worked| own| owned| founded| manage| managed| teach| taught| sold)\b/i.test(idea) ||
     /\bmy\s+(?:\w+\s+){0,2}(?:years?|career|background|company|business|café|cafe|shop|restaurant|firm|team|clients?|customers?|job|degree|studio|practice)\b/i.test(idea)
   );
 }

@@ -163,7 +163,7 @@ function Identity({ persona }: { persona: PersonaId }) {
       <div className="min-w-0">
         <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-muted">{p.role}</p>
         <h2
-          className="mt-2 font-display text-[clamp(3.2rem,10vw,7rem)] uppercase leading-[0.9] tracking-wide"
+          className="persona-name mt-2 font-display text-[clamp(3.2rem,10vw,7rem)] uppercase leading-[0.9] tracking-wide"
           style={{ color: p.color, textShadow: `0 0 50px rgb(${p.rgb} / 0.45)` }}
         >
           {p.name}

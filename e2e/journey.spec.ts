@@ -209,3 +209,18 @@ test("roast screens show every field at its maximum length in full", async ({ pa
   await scrollThrough(page);
   await page.screenshot({ path: testInfo.outputPath("roast-max-length.png"), fullPage: true });
 });
+
+test("persona names stay on one line on a wide desktop screen", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "the wide layout only exists on desktop");
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Uber for dog walking" }).click();
+  await page.getByRole("button", { name: /put it on trial/i }).click();
+  const name = page.getByRole("heading", { level: 2, name: "STERLING" });
+  await expect(name).toBeVisible({ timeout: 25_000 });
+  const { lines } = await name.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { lines: Math.round(el.getBoundingClientRect().height / parseFloat(cs.lineHeight)) };
+  });
+  expect(lines).toBe(1);
+});
