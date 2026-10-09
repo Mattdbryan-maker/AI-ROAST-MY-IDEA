@@ -1,0 +1,66 @@
+1
+00:00:00,000 --> 00:00:02,960
+I BUILT 4 AI JUDGES
+TO DESTROY BUSINESS IDEAS.
+
+2
+00:00:03,550 --> 00:00:04,410
+THE ACCUSED:
+NFTs FOR SOURDOUGH STARTERS
+
+3
+00:00:04,450 --> 00:00:07,160
+ON TRIAL: NFTs FOR SOURDOUGH STARTERS
+
+4
+00:00:07,350 --> 00:00:10,210
+STERLING (the investor): A starter is a jar of flour and water that a hobbyist can split with a spoon for free.
+
+5
+00:00:10,150 --> 00:00:12,660
+KERNEL (the engineer): A tree that anyone can type into is just a nicer Word document.
+
+6
+00:00:13,000 --> 00:00:15,460
+HYPE (the marketer): Sourdough is a cult, but cults don't buy certificates for their pet yeast.
+
+7
+00:00:15,750 --> 00:00:17,960
+WALLET (the customer): …and I have never once wanted its family tree.
+
+8
+00:00:19,900 --> 00:00:21,960
+KILL IT
+19 / 100
+
+9
+00:00:22,100 --> 00:00:23,060
+BUT CAN AI SAVE IT?
+
+10
+00:00:23,200 --> 00:00:24,410
+FIX MY IDEA: STARTER LINEAGE LOG
+19 → 41 (projected)
+
+11
+00:00:24,500 --> 00:00:25,360
+NO TOKENS. NO WALLET.
+
+12
+00:00:25,900 --> 00:00:26,460
+KILL IT
+PROJECTED 41 / 100
+
+13
+00:00:26,550 --> 00:00:26,960
++22 POINTS. STILL DEAD.
+
+14
+00:00:27,000 --> 00:00:31,760
+THE REAL APP
+Sample session: real Claude Haiku 5.5 output, recorded earlier, replayed in the live app.
+
+15
+00:00:31,800 --> 00:00:34,760
+YOUR IDEA IS NEXT.
+WOULD IT SURVIVE?

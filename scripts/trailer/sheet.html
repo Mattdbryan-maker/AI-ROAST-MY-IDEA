@@ -1,0 +1,39 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:"Anton";src:url("../../src/assets/fonts/anton-400.woff")}
+@font-face{font-family:"JetBrains Mono";src:url("../../src/assets/fonts/jetbrains-mono-500.woff")}
+html,body{margin:0;background:#06070b}
+svg{display:block}
+</style></head>
+<body>
+<svg id="s" width="1800" height="1500" viewBox="0 0 1800 1500" xmlns="http://www.w3.org/2000/svg"></svg>
+<script src="characters.js"></script>
+<script>
+const {E,set,Sterling,Kernel,Hype,Wallet,withBase,defs}=JUDGES;
+const svg=document.getElementById('s');
+defs(svg);
+E('rect',{width:1800,height:1500,fill:'#08090e'},svg);
+const cols=[['STERLING','#ffc247',Sterling],['KERNEL','#33e7ff',Kernel],['HYPE','#ff4fd8',Hype],['WALLET','#6dffb0',Wallet]];
+const rows=[
+ ['neutral',{}],
+ ['talk / smug',{mouth:'smile',talk:.7,browL:-6,tilt:8}],
+ ['shock',{wide:1,browL:-14,browR:-14,mouth:'o',talk:.8,hy:-6}],
+];
+const q=new URLSearchParams(location.search);
+cols.forEach(([name,col,mk],ci)=>{
+  const gx=ci*450+225;
+  E('text',{x:gx,y:66,'text-anchor':'middle','font-family':'Anton',fill:col,'font-size':54,'letter-spacing':4},svg).textContent=name;
+  E('ellipse',{cx:gx,cy:700,rx:200,ry:520,fill:col,opacity:.07},svg);
+  rows.forEach(([rn,pose],ri)=>{
+    const g=E('g',{transform:`translate(${gx} ${ri*470+520}) scale(.62)`},svg);
+    const ch=mk(g);
+    const p=withBase(pose);
+    if(name==='KERNEL'){ if(ri==1){p.mode=1;} if(ri==2){p.heat=1;p.steam=1;p.spark=1;p.steamT=.4;p.sparkT=.3;p.fanAngle=30;} }
+    if(name==='HYPE'){ if(ri==0){p.hype=1;p.hypeT=.3;} if(ri==1){p.shades=1;p.hype=1;p.hypeT=.6;} if(ri==2){p.shades=0;p.shadesY=-190;p.shadesX=130;p.shadesR=24;p.hype=1;p.hypeT=.9;}}
+    if(name==='STERLING'){ if(ri==0){p.monocle=1;} if(ri==1){p.monocle=1;p.calc=1;p.aLs=40;p.aLf=-60;} if(ri==2){p.monocle=0;p.glasses=1;} }
+    if(name==='WALLET'){ if(ri==0){p.sweat=0;} if(ri==1){p.sweat=1;p.sweatT=.2;p.mouth='frown';p.stress=1;} if(ri==2){p.flap=1;p.coin=1;p.mouth='flat';p.talk=0;p.sweat=0;} }
+    ch.update(p);
+  });
+});
+</script></body></html>

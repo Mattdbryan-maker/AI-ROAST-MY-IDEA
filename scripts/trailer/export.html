@@ -1,0 +1,34 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:"Anton";src:url("../../src/assets/fonts/anton-400.woff")}
+@font-face{font-family:"JetBrains Mono";src:url("../../src/assets/fonts/jetbrains-mono-500.woff")}
+html,body{margin:0;background:#08090e}
+</style></head>
+<body><svg id="s" width="1200" height="900" viewBox="0 0 1200 900" xmlns="http://www.w3.org/2000/svg"></svg>
+<script src="characters.js"></script>
+<script>
+const {E,set,Sterling,Kernel,Hype,Wallet,withBase,defs}=JUDGES;
+const ctor={sterling:Sterling,kernel:Kernel,hype:Hype,wallet:Wallet};
+const col={sterling:'#ffc247',kernel:'#33e7ff',hype:'#ff4fd8',wallet:'#6dffb0'};
+const poses={
+ sterling:[['neutral',{monocle:1}],['smug talk',{monocle:1,mouth:'smile',talk:.7,browL:-8,tilt:10}],['brow raise',{monocle:1,browL:-26,browR:-10,tilt:14,open:1}],['calculating',{monocle:1,calc:1,aLs:72,aLf:70}],['disgust',{monocle:0,glasses:1,wide:.4,browL:-6,mouth:'frown',tilt:20,open:.5}],['stamp raised',{monocle:1,stamp:1,aRs:168,open:.4,tilt:22}]],
+ kernel:[['neutral',{open:.9}],['unimpressed',{open:.42,tilt:12}],['ERR',{mode:1}],['overheating',{heat:1,steam:1,spark:1,steamT:.4,sparkT:.3,fanAngle:30,wide:.5}],['blue screen',{mode:2}],['reboot squint',{open:.25,tilt:16,lookX:.9}]],
+ hype:[['neutral',{hype:1,hypeT:.3}],['pose',{hype:1,hypeT:.6,mouth:'smile',talk:.8,aRs:150,aRf:25,aLs:95,aLf:30,hr:-6}],['shades off',{shades:0,shadesY:-190,shadesX:130,shadesR:24,wide:1,mouth:'o',talk:.7,browL:-16,browR:-16}],['deflated',{shades:0,shadesY:170,shadesX:40,shadesR:-50,hy:16,open:.5,mouth:'frown',browL:4,browR:4}],['glint',{hype:.6,hypeT:.2,glow:2}],['hopeful',{hype:.3,mouth:'smile',wide:.3}]],
+ wallet:[['neutral',{}],['panic',{sweat:1,sweatT:.2,mouth:'frown',stress:1,wide:.9,aLs:60,aLf:120,shake:2}],['deadpan',{open:.5,tilt:12,browL:4,browR:4}],['wallet open',{flap:1,coin:1,lookY:.9,open:.6}],['offended',{wide:.8,mouth:'o',talk:.5,sweat:1,sweatT:.5}],['wince',{open:.5,tilt:-14,mouth:'frown',sweat:1,sweatT:.1}]],
+};
+const svg=document.getElementById('s'); defs(svg);
+function clear(){ [...svg.children].forEach(c=>{ if(c.tagName!=='defs') c.remove(); }); }
+window.showSheet=(id)=>{ clear(); E('rect',{width:1200,height:900,fill:'#08090e'},svg);
+  E('text',{x:600,y:70,'text-anchor':'middle','font-family':'Anton','font-size':54,'letter-spacing':6,fill:col[id]},svg).textContent=id.toUpperCase()+'  EXPRESSIONS';
+  poses[id].forEach(([name,pose],i)=>{ const x=(i%3)*400+200, y=(i<3?470:870);
+    const g=E('g',{transform:`translate(${x} ${y}) scale(.55)`},svg); const ch=ctor[id](g); ch.update(withBase(pose));
+    E('text',{x,y:y+30,'text-anchor':'middle','font-family':'JetBrains Mono','font-size':22,fill:'#9aa0b4'},svg).textContent=name; }); };
+window.showLineup=()=>{ clear(); E('rect',{width:1200,height:900,fill:'#08090e'},svg);
+  ids=['sterling','kernel','hype','wallet'];
+  ids.forEach((id,i)=>{ const g=E('g',{transform:`translate(${i*300+150} 700) scale(.55)`},svg); const ch=ctor[id](g); const p=withBase(id==='sterling'?{monocle:1}:id==='hype'?{hype:1,hypeT:.4}:{}); ch.update(p);
+    E('text',{x:i*300+150,y:790,'text-anchor':'middle','font-family':'Anton','font-size':40,'letter-spacing':5,fill:col[id]},svg).textContent=id.toUpperCase(); }); };
+window.exportSvg=(id)=>{ clear(); const g=E('g',{transform:'translate(300 700)'},svg); const ch=ctor[id](g); ch.update(withBase(id==='sterling'?{monocle:1}:id==='hype'?{hype:1,hypeT:.4}:{}));
+  const d=svg.querySelector('defs').outerHTML; return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-300 -700 600 800" width="600" height="800">${d}${g.outerHTML.replace('translate(300 700)','translate(0 0)')}</svg>`; };
+var ids; window.EXPORT_READY=true;
+</script></body></html>
