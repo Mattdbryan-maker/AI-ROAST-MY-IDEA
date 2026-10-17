@@ -56,3 +56,9 @@ next-env.d.ts
 
 # launch media (large; regenerate with scripts/launch)
 /artifacts/
+
+# large promotional renders (never commit; keep them under artifacts/ or outside the repo)
+/docs/*.mp4
+*.mp4
+*.webm
+*.wav
