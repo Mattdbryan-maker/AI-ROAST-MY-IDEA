@@ -10,7 +10,7 @@ export const maxDuration = 120;
  * Validation and rate-limit failures are ordinary JSON error responses.
  */
 export async function POST(request: Request) {
-  const input = await parseAiRequest(request, RoastRequestSchema);
+  const input = await parseAiRequest(request, RoastRequestSchema, "roast");
   if (!input.ok) return input.response;
 
   // Stop generating (and paying for) tokens as soon as the viewer goes away.

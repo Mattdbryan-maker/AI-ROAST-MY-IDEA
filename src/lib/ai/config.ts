@@ -71,8 +71,29 @@ function think(env: Env): ThinkSetting {
   throw new ConfigError(`OLLAMA_THINK must be false, true, low, medium or high (got "${raw}")`);
 }
 
+/** Models a production deployment may use unless the operator widens the list on purpose. */
+export const PRODUCTION_MODEL_ALLOWLIST = ["claude-haiku-5-5"];
+
+function checkProductionModel(env: Env, key: string, model: string) {
+  if (env.NODE_ENV !== "production") return;
+  const allowed = (str(env, "ANTHROPIC_ALLOWED_MODELS") ?? PRODUCTION_MODEL_ALLOWLIST.join(","))
+    .split(",")
+    .map((m) => m.trim())
+    .filter(Boolean);
+  if (!allowed.includes(model)) {
+    throw new ConfigError(
+      `${key}="${model}" is not an allowed production model (${allowed.join(", ")}). It is a much more expensive model than the beta budget assumes; add it to ANTHROPIC_ALLOWED_MODELS only if that is intended`,
+    );
+  }
+}
+
 export function loadAiConfig(env: Env = process.env): AiConfig {
   const requested = str(env, "AI_PROVIDER")?.toLowerCase();
+  // In production the provider must be chosen on purpose. A forgotten key must produce a clear
+  // error, not a site that quietly serves canned demo roasts as if the AI were working.
+  if (!requested && env.NODE_ENV === "production") {
+    throw new ConfigError('AI_PROVIDER is not set. In production set AI_PROVIDER=anthropic (or AI_PROVIDER=demo to run the offline demo on purpose)');
+  }
   const provider = requested ?? (str(env, "ANTHROPIC_API_KEY") ? "anthropic" : "demo");
 
   switch (provider) {
@@ -83,11 +104,14 @@ export function loadAiConfig(env: Env = process.env): AiConfig {
       const apiKey = str(env, "ANTHROPIC_API_KEY");
       if (!apiKey) throw new ConfigError("AI_PROVIDER=anthropic but ANTHROPIC_API_KEY is not set");
       const model = str(env, "ANTHROPIC_MODEL") ?? DEFAULT_ANTHROPIC_MODEL;
+      const fixModel = str(env, "ANTHROPIC_FIX_MODEL") ?? model;
+      checkProductionModel(env, "ANTHROPIC_MODEL", model);
+      checkProductionModel(env, "ANTHROPIC_FIX_MODEL", fixModel);
       return {
         provider: "anthropic",
         apiKey,
         model,
-        fixModel: str(env, "ANTHROPIC_FIX_MODEL") ?? model,
+        fixModel,
         effort: str(env, "ANTHROPIC_EFFORT"),
         serverFallback: str(env, "ANTHROPIC_SERVER_FALLBACK")?.toLowerCase() !== "false",
         debateMode: debateMode(env),

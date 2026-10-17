@@ -56,7 +56,9 @@ export function createRateLimiter({ limit, windowMs }: { limit: number; windowMs
  * - Outside production the first entry is used, which is convenient for local testing.
  */
 export function clientKey(request: Request, env: Record<string, string | undefined> = process.env): string {
-  const header = env.CLIENT_IP_HEADER?.trim().toLowerCase();
+  // On Vercel the edge overwrites x-forwarded-for and never forwards a client-supplied value (Vercel docs,
+  // "Request headers"); x-vercel-forwarded-for is the same address and survives a proxy placed in front.
+  const header = env.CLIENT_IP_HEADER?.trim().toLowerCase() || (env.VERCEL ? "x-vercel-forwarded-for" : undefined);
   if (header) return request.headers.get(header)?.split(",")[0]?.trim() || "unknown";
   const forwarded = request.headers
     .get("x-forwarded-for")

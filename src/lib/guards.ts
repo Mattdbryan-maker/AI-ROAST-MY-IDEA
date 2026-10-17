@@ -1,6 +1,8 @@
 import { loadAiConfig } from "./ai/config";
 import { ANTHROPIC_PRICES, costOf } from "./ai/pricing";
 import type { LlmUsage } from "./ai/llm";
+import { recordUsageStats } from "./shared/stats";
+import { upstashCredentials } from "./shared/store";
 
 /**
  * Abuse and cost controls, all per server instance and in memory.
@@ -124,6 +126,10 @@ export function recordUsage(rec: { purpose: string; provider: string; model: str
       estUsdToday: Number(ledger.usd.toFixed(6)),
     }),
   );
+  // Shared, anonymous token and cost counters for the operator (see shared/stats.ts). Only when a real store exists.
+  if (upstashCredentials()) {
+    void recordUsageStats({ inputTokens: rec.usage.inputTokens ?? 0, outputTokens: rec.usage.outputTokens ?? 0, usd });
+  }
   return usd;
 }
 

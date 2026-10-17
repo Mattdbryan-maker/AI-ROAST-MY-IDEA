@@ -140,6 +140,9 @@ export type ApiErrorCode =
   | "provider_error"
   | "invalid_response"
   | "refused"
+  | "unauthorized"
+  | "verification_required"
+  | "unavailable"
   | "internal";
 
 export interface ApiError {

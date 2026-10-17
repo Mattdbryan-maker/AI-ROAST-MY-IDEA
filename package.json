@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "check": "npm run lint && npm run typecheck && npm run test",
+    "check:secrets": "node scripts/check-secrets.mjs",
     "build:standalone": "node scripts/build-standalone.mjs",
     "bench": "tsx bench/run.ts",
     "bench:score": "tsx bench/score.ts",
@@ -20,6 +21,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.132.0",
+    "@upstash/redis": "^1.39.0",
     "framer-motion": "^12.43.0",
     "next": "16.4.0",
     "react": "19.3.0",

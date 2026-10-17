@@ -9,5 +9,5 @@ export async function POST(request: Request) {
     const roast = await getProvider().roast(idea, signal);
     // Final belt-and-braces check: never send the UI something it can't render.
     return RoastSchema.parse(roast);
-  });
+  }, "roast");
 }
