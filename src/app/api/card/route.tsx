@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ImageResponse } from "next/og";
 import { PERSONAS, PERSONA_ORDER } from "@/lib/personas";
+import { clientKey, createRateLimiter } from "@/lib/rate-limit";
 import { VERDICT_COPY } from "@/lib/scoring";
 import { decodeShare, type SharePayload } from "@/lib/share";
 
@@ -26,7 +27,12 @@ function loadFonts() {
 
 type Payload = SharePayload & { d: NonNullable<SharePayload["d"]> };
 
+// Rendering an image costs CPU, so a flood of distinct payloads is capped per client (per instance). Identical
+// payloads are served from the CDN cache (immutable), so ordinary sharing never reaches this limit.
+const cardLimiter = createRateLimiter({ limit: 40, windowMs: 10 * 60 * 1000 });
+
 export async function GET(request: Request) {
+  if (!cardLimiter(clientKey(request)).ok) return new Response("Too many requests", { status: 429, headers: { "Retry-After": "60" } });
   const url = new URL(request.url);
   const payload = decodeShare(url.searchParams.get("d"));
   if (!payload) return new Response("Invalid share payload", { status: 400 });

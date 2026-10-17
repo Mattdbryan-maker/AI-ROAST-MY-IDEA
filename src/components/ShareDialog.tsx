@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { track } from "@/lib/analytics";
 import { PERSONAS, PERSONA_ORDER } from "@/lib/personas";
 import { STANDALONE } from "@/lib/runtime";
 import { VERDICT_COPY } from "@/lib/scoring";
@@ -56,6 +57,7 @@ export function ShareDialog({ roast, open, onClose }: { roast: Roast; open: bool
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 2000);
       flash("Card downloaded");
+      track("share");
     } catch {
       flash("Couldn't generate the card — try again");
     }
@@ -65,6 +67,7 @@ export function ShareDialog({ roast, open, onClose }: { roast: Roast; open: bool
     try {
       await navigator.clipboard.writeText(shareUrl);
       flash("Link copied");
+      track("share");
     } catch {
       flash("Copy blocked — long-press the link instead");
     }
@@ -79,6 +82,7 @@ export function ShareDialog({ roast, open, onClose }: { roast: Roast; open: bool
       } else {
         await navigator.share({ title: "AI ROAST MY IDEA", text: shareText, url: shareUrl });
       }
+      track("share");
     } catch (err) {
       if ((err as Error).name !== "AbortError") flash("Sharing isn't available here — copy the link instead");
     }
@@ -89,6 +93,7 @@ export function ShareDialog({ roast, open, onClose }: { roast: Roast; open: bool
     try {
       await navigator.clipboard.writeText(`${shareText}\n${lines.join(" · ")}\n“${roast.closingLine}”`);
       flash("Result copied");
+      track("share");
     } catch {
       flash("Copy blocked — select the text instead");
     }

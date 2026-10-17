@@ -2,6 +2,7 @@
 
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { track } from "@/lib/analytics";
 import { RoastApiError, requestFix, streamRoast } from "@/lib/client-api";
 import { EMPTY_LIVE, liveReducer } from "@/lib/live-roast";
 import { STANDALONE } from "@/lib/runtime";
@@ -53,6 +54,7 @@ export function RoastExperience() {
 
   useEffect(() => {
     if (STANDALONE) return;
+    track("visit");
     fetch("/api/status")
       .then((r) => r.json())
       .then((s: { mode: string }) => setMode(s.mode === "ai" || s.mode === "demo" ? s.mode : null))
@@ -205,7 +207,7 @@ export function RoastExperience() {
             </motion.div>
           </AnimatePresence>
         </main>
-        {stage.name === "landing" && <Footer />}
+        {stage.name === "landing" && <Footer mode={mode} />}
       </div>
       {roast && <ShareDialog roast={roast} open={shareOpen} onClose={() => setShareOpen(false)} />}
     </MotionConfig>
@@ -258,10 +260,25 @@ function ErrorView({ message, onRetry, onHome }: { message: string; onRetry: () 
   );
 }
 
-function Footer() {
+function Footer({ mode }: { mode: "ai" | "demo" | null }) {
   return (
-    <footer className="relative z-10 mx-auto w-full max-w-7xl px-4 pb-8 pt-4 text-center font-mono text-[10px] uppercase tracking-[0.25em] text-dim sm:px-8">
-      For entertainment and honest feedback, not professional advice. The panel is harsh on ideas, never on people.
+    <footer className="relative z-10 mx-auto w-full max-w-7xl px-4 pb-8 pt-4 text-center font-mono text-[10px] uppercase tracking-[0.25em] text-muted sm:px-8">
+      <p>For entertainment and honest feedback, not professional advice. The panel is harsh on ideas, never on people.</p>
+      <p className="mx-auto mt-3 max-w-2xl normal-case tracking-normal">
+        The judges are AI characters. Their criticism is speculative and can be wrong: they do not research competitors or verify market data.{" "}
+        {mode === "ai"
+          ? "Your pitch is sent to Anthropic's Claude to write the roast."
+          : mode === "demo"
+            ? "This is the offline demo panel: roasts are scripted, not written by an AI model."
+            : ""}
+      </p>
+      {!STANDALONE && (
+        <nav aria-label="Legal" className="mt-3 flex justify-center gap-5">
+          <a href="/privacy" className="underline-offset-4 hover:underline">Privacy</a>
+          <a href="/terms" className="underline-offset-4 hover:underline">Terms</a>
+          <a href="/contact" className="underline-offset-4 hover:underline">Contact</a>
+        </nav>
+      )}
     </footer>
   );
 }

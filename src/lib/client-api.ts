@@ -1,3 +1,4 @@
+import { acquireHumanPass } from "./human-check";
 import { STANDALONE } from "./runtime";
 import type { RoastStreamEvent } from "./stream-events";
 import type { ApiError, FixResult, Roast } from "./types";
@@ -32,11 +33,29 @@ async function post<T>(url: string, body: unknown, signal?: AbortSignal): Promis
   return json;
 }
 
-export const requestRoast = (idea: string, signal?: AbortSignal) => post<Roast>("/api/roast", { idea }, signal);
+/**
+ * Runs a paid request. If the server says a human check is required (Turnstile
+ * is configured), completes it once and retries the request a single time.
+ */
+async function withHumanPass<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (err) {
+    if (!(err instanceof RoastApiError) || err.code !== "verification_required") throw err;
+    try {
+      await acquireHumanPass();
+    } catch (check) {
+      throw new RoastApiError(check instanceof Error ? check.message : "The human check failed. Please try again.", "verification_required");
+    }
+    return run();
+  }
+}
+
+export const requestRoast = (idea: string, signal?: AbortSignal) => withHumanPass(() => post<Roast>("/api/roast", { idea }, signal));
 
 export async function requestFix(idea: string, roast: Roast, signal?: AbortSignal): Promise<FixResult> {
   if (STANDALONE) return (await import("./standalone-demo")).localFix(idea, roast);
-  return post<FixResult>("/api/fix", { idea, roast }, signal);
+  return withHumanPass(() => post<FixResult>("/api/fix", { idea, roast }, signal));
 }
 
 /**
@@ -45,6 +64,10 @@ export async function requestFix(idea: string, roast: Roast, signal?: AbortSigna
  */
 export async function streamRoast(idea: string, onEvent: (event: RoastStreamEvent) => void, signal?: AbortSignal): Promise<Roast> {
   if (STANDALONE) return (await import("./standalone-demo")).localStreamRoast(idea, onEvent, signal);
+  return withHumanPass(() => streamRoastOnce(idea, onEvent, signal));
+}
+
+async function streamRoastOnce(idea: string, onEvent: (event: RoastStreamEvent) => void, signal?: AbortSignal): Promise<Roast> {
   let res: Response;
   try {
     res = await fetch("/api/roast/stream", {

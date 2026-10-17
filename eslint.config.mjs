@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Local-only trees that are not part of the app (git-ignored media, a Python venv with bundled JS, standalone build).
+    "tools/**",
+    "artifacts/**",
+    "dist/**",
   ]),
 ]);
 

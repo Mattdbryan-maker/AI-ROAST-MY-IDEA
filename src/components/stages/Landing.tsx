@@ -112,7 +112,7 @@ export function Landing({
         transition={{ delay: 1.1, duration: 0.8 }}
         className="mt-5 max-w-xl text-center text-base text-muted sm:text-lg"
       >
-        Four AI critics. One brutal verdict. Feedback that&apos;s actually useful — and a fix for whatever survives.
+        Four AI judges put your business idea on trial. One brutal verdict. Feedback that&apos;s actually useful — and a fix for whatever survives.
       </motion.p>
 
       <motion.form

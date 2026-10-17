@@ -6,6 +6,8 @@ export default defineConfig({
   testDir: "./e2e",
   timeout: 120_000,
   fullyParallel: true,
+  // The cinematic pages are animation-heavy: with the default worker count page loads time out on a busy machine (8 of 14 failed on a 15 GB laptop). Two workers is reliable.
+  workers: 2,
   reporter: "list",
   use: {
     baseURL: `http://localhost:${PORT}`,
